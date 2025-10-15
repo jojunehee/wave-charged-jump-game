@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Wave Charged Jump Game</title>
+  <title>Wave Charged Jump Game (v1.5)</title>
   <style>
-    html, body { height: 100%; touch-action: none; } /* 모바일 제스처에서 브라우저 스크롤 방지 */
+    html, body { height: 100%; touch-action: none; }
     body { margin: 0; overflow: hidden; }
     canvas { display: block; }
 
@@ -20,51 +20,61 @@
       transform: translateX(-50%); width: min(80vw, 800px); height: 20px;
       background: #ddd; border-radius: 10px; overflow: hidden; z-index: 11;
     }
-
-    #chargeFill {
-      height: 100%; background: red; width: 0%;
-      transition: width 0.05s linear;
-    }
+    #chargeFill { height: 100%; background: red; width: 0%; }
 
     #gameOverScreen {
       position: absolute; top: 50%; left: 50%;
       transform: translate(-50%, -50%); background: rgba(0,0,0,0.8);
       color: white; padding: 30px; border-radius: 12px;
-      display: none; text-align: center; z-index: 20;
+      display: none; text-align: center; z-index: 20; min-width: 320px;
     }
 
-    #platformLabelsContainer {
-      position: absolute; top: 0; left: 0; pointer-events: none; z-index: 15;
-    }
-
-    .platform-label {
-      position: absolute;
-      font-size: 20px;
-      font-weight: bold;
-      color: black;
-      text-shadow: 1px 1px white;
-      transform: translate(-50%, -50%);
-      display: none;
-    }
+    #platformLabelsContainer { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 15; }
+    .platform-label { position: absolute; font-size: 20px; font-weight: bold; color: black;
+      text-shadow: 1px 1px white; transform: translate(-50%, -50%); display: none; }
   </style>
 </head>
 <body>
   <div id="score">Score: 0</div>
   <div id="chargeBar"><div id="chargeFill"></div></div>
 
+  <!-- Game Over + Leaderboard UI -->
   <div id="gameOverScreen">
     <h1>Game Over</h1>
     <p id="finalScoreText"></p>
     <p id="highScoreText"></p>
-    <button onclick="window.location.reload()">Play Again</button>
+
+    <div style="margin-top:12px;">
+      <input id="playerNameInput" type="text" maxlength="24"
+             placeholder="Your name" style="padding:8px;border-radius:6px;border:1px solid #ccc;width:220px;">
+      <button id="submitScoreBtn" disabled
+              style="padding:8px 12px;border-radius:6px;border:0;background:#4CAF50;color:#fff;cursor:pointer;opacity:0.6;">
+        Save Score
+      </button>
+      <div id="nameHint" style="margin-top:6px;font-size:12px;color:#ffb300;display:none;">
+        이름이 없으면 ‘noname’으로 저장할지 확인합니다.
+      </div>
+    </div>
+
+    <div style="margin-top:10px;">
+      <!-- ⛔ onclick 제거: JS에서 확인 로직 처리 -->
+      <button id="playAgainBtn">Play Again</button>
+    </div>
+
+    <div id="leaderboard" style="margin-top:18px;text-align:left;max-width:360px;margin-left:auto;margin-right:auto;">
+      <h2 style="margin:6px 0 8px;">Leaderboard</h2>
+      <ol id="leaderboardList" style="padding-left:18px;margin:0;"></ol>
+      <div style="margin-top:10px;">
+        <button id="clearScoresBtn" style="padding:6px 10px;border-radius:6px;border:1px solid #999;background:#222;color:#fff;cursor:pointer;">
+          Clear Local Scores
+        </button>
+      </div>
+    </div>
   </div>
 
   <div id="platformLabelsContainer"></div>
 
   <script type="module">
-    // ────────────────────────────────────────────────────────────────
-    // Imports & Core Setup
-    // ────────────────────────────────────────────────────────────────
     import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js';
 
     const PLATFORM_TYPE_POOL = ['normal','normal','normal','normal','normal','narrow','narrow','narrow','bounce','bounce','vanish'];
@@ -91,47 +101,34 @@
     const clock = new THREE.Clock();
     let animationId;
 
-    // ────────────────────────────────────────────────────────────────
-    // UI Elements
-    // ────────────────────────────────────────────────────────────────
+    // UI
     const scoreEl = document.getElementById('score');
     const chargeFill = document.getElementById('chargeFill');
     const finalScoreText = document.getElementById('finalScoreText');
     const highScoreText = document.getElementById('highScoreText');
     const gameOverScreen = document.getElementById('gameOverScreen');
     const platformLabelsContainer = document.getElementById('platformLabelsContainer');
+    const playerNameInput = document.getElementById('playerNameInput');
+    const submitScoreBtn  = document.getElementById('submitScoreBtn');
+    const playAgainBtn    = document.getElementById('playAgainBtn');
+    const leaderboardList = document.getElementById('leaderboardList');
+    const clearScoresBtn  = document.getElementById('clearScoresBtn');
+    const nameHint        = document.getElementById('nameHint');
 
-    // ────────────────────────────────────────────────────────────────
-    // Game State
-    // ────────────────────────────────────────────────────────────────
+    // Game state
     const startTime = Date.now();
-    let isInvincible = true; // 시작 3초 무적
+    let isInvincible = true;
     let highScore = parseInt(localStorage.getItem('highScore') || '0', 10);
+    let velocityY = 0, isGrounded = false, onPlatform = null;
+    let chargeTime = 0, isCharging = false, chargeDirection = 1;
+    const maxCharge = 1.0, chargeSpeed = 0.8;
+    let touchActive = false, touchMode = null, touchStartX = 0, touchLastX = 0, passedDeadzone = false;
+    const DRAG_GAIN = 0.01, DEADZONE_PX = 8, MIN_JUMP = 0.2;
 
-    let velocityY = 0;
-    let isGrounded = false;
-    let onPlatform = null;
+    // 저장 흐름 상태
+    let hasSavedThisGame = false;
 
-    // 충전 점프
-    let chargeTime = 0;
-    let isCharging = false;
-    let chargeDirection = 1; // 왕복 파형(상승/하강)
-    const maxCharge = 1.0;
-    const chargeSpeed = 0.8;
-
-    // 모바일 제스처 상태
-    let touchActive = false;
-    let touchMode = null; // 'charge' | 'drag' | null
-    let touchStartTime = 0;
-    let touchStartX = 0;
-    let touchLastX = 0;
-    let passedDeadzone = false;
-
-    const DRAG_GAIN = 0.01;  // 터치 이동 감도 (px → world)
-    const DEADZONE_PX = 8;   // 초기 미세 흔들림 무시
-    const MIN_JUMP = 0.2;    // 최소 점프력(찔끔 점프 방지)
-
-    // 플레이어
+    // Player
     const player = new THREE.Mesh(
       new THREE.BoxGeometry(1, 1, 1),
       new THREE.MeshBasicMaterial({ color: 0x0000ff })
@@ -139,7 +136,7 @@
     scene.add(player);
     player.position.y = 0;
 
-    // 입력(키보드: 공중에서만 좌우 이동)
+    // Keyboard
     const input = { left: false, right: false };
     document.addEventListener('keydown', e => {
       if (e.code === 'KeyA' || e.code === 'ArrowLeft') input.left = true;
@@ -150,129 +147,181 @@
       if (e.code === 'KeyA' || e.code === 'ArrowLeft') input.left = false;
       if (e.code === 'KeyD' || e.code === 'ArrowRight') input.right = false;
       if (e.code === 'Space' && isGrounded && isCharging) {
-        // 점프 발사
         velocityY = Math.max(chargeTime, MIN_JUMP);
-        chargeTime = 0;
-        isCharging = false;
-        chargeDirection = 1;
-        isGrounded = false;
+        chargeTime = 0; isCharging = false; chargeDirection = 1; isGrounded = false;
         chargeFill.style.width = '0%';
       }
     });
 
-    // ────────────────────────────────────────────────────────────────
-    // 모바일 제스처(A형): 지상=충전, 공중=드래그 이동
-    // ────────────────────────────────────────────────────────────────
-    const passiveFalse = { passive: false };
+    // Local leaderboard
+    const LB_STORAGE_KEY = 'wcjg_leaderboard_v1';
+    const LAST_NAME_KEY  = 'wcjg_last_name';
 
-    function onTouchStart(e){
-      e.preventDefault();
-      const t = e.touches[0];
-      touchActive = true;
-      touchStartTime = performance.now();
-      touchStartX = t.clientX;
-      touchLastX = t.clientX;
-      passedDeadzone = false;
+    function loadLeaderboard() {
+      try { return JSON.parse(localStorage.getItem(LB_STORAGE_KEY) || '[]'); }
+      catch { return []; }
+    }
+    function saveLeaderboard(entries) {
+      localStorage.setItem(LB_STORAGE_KEY, JSON.stringify(entries));
+    }
+    function recordScore(name, score) {
+      const clean = (name || '').trim() || 'Anonymous';
+      localStorage.setItem(LAST_NAME_KEY, clean);
+      const now = new Date().toISOString();
+      const list = loadLeaderboard();
 
-      if (isGrounded) {
-        touchMode = 'charge';
-        isCharging = true;        // 지상에서 터치=충전 시작
-      } else {
-        touchMode = 'drag';       // 공중이면 드래그 모드
+      // 같은 이름은 최고점만 유지(동점은 최신 날짜)
+      const map = new Map();
+      for (const e of list) {
+        const prev = map.get(e.name);
+        if (!prev || e.score > prev.score) map.set(e.name, e);
+        else if (e.score === prev.score && e.date > prev.date) map.set(e.name, e);
+      }
+      const prev = map.get(clean);
+      if (!prev || score > prev.score) map.set(clean, { name: clean, score, date: now });
+      else if (score === prev?.score)   map.set(clean, { name: clean, score, date: now });
+
+      const arr = [...map.values()].sort((a,b) => b.score - a.score || (b.date > a.date ? 1 : -1)).slice(0, 20);
+      saveLeaderboard(arr);
+      return arr;
+    }
+    function renderLeaderboard() {
+      const list = loadLeaderboard().sort((a,b) => b.score - a.score || (b.date > a.date ? 1 : -1));
+      leaderboardList.innerHTML = '';
+      list.forEach(e => {
+        const li = document.createElement('li');
+        li.textContent = `${e.name} — ${e.score}`; // <ol>이 번호 자동 부여
+        leaderboardList.appendChild(li);
+      });
+    }
+    (function presetName(){
+      const last = localStorage.getItem(LAST_NAME_KEY);
+      if (playerNameInput && last) playerNameInput.value = last;
+    })();
+
+    function enableSaveButtonIfReady() {
+      const hasName = !!(playerNameInput?.value.trim());
+      if (submitScoreBtn) {
+        submitScoreBtn.disabled = !hasName || hasSavedThisGame;
+        submitScoreBtn.style.opacity = submitScoreBtn.disabled ? '0.6' : '1';
       }
     }
+    function getFinalScore() {
+      const scoreText = finalScoreText.textContent || '';
+      const m = scoreText.match(/(\d+)/);
+      return m ? parseInt(m[1], 10) : Math.floor(maxY);
+    }
+    function saveCurrentRun(name, score) {
+      if (hasSavedThisGame) return;
+      recordScore(name, score);
+      renderLeaderboard();
+      hasSavedThisGame = true;
+      if (submitScoreBtn) { submitScoreBtn.disabled = true; submitScoreBtn.textContent = 'Saved!'; }
+      enableSaveButtonIfReady();
+    }
 
-    function onTouchMove(e){
-      e.preventDefault();
-      if (!touchActive) return;
-      const t = e.touches[0];
+    // 이름 입력 변화 → 버튼 활성화만
+    playerNameInput?.addEventListener('input', enableSaveButtonIfReady);
 
-      if (touchMode === 'drag') {
-        // 데드존 통과 여부 판단
-        if (!passedDeadzone && Math.abs(t.clientX - touchStartX) >= DEADZONE_PX) {
-          passedDeadzone = true;
-        }
-        if (passedDeadzone) {
-          const dx = t.clientX - touchLastX;
-          // 공중에서만 의미 있게 이동 (지상에서도 드래그는 받지만 플레이어 이동은 안 함)
-          if (!isGrounded) {
-            player.position.x += dx * DRAG_GAIN;
+    // Save 버튼: 이름 없으면 noname 저장 여부 확인
+    submitScoreBtn?.addEventListener('click', () => {
+      if (hasSavedThisGame) return;
+      let name = (playerNameInput?.value || '').trim();
+      if (!name) {
+        nameHint && (nameHint.style.display = 'block');
+        const ok = confirm("이름이 비어 있습니다. 'noname'으로 저장할까요?");
+        if (!ok) { playerNameInput?.focus(); return; }
+        name = 'noname';
+        if (playerNameInput) playerNameInput.value = name;
+      }
+      saveCurrentRun(name, getFinalScore());
+    });
+
+    // Play Again: 저장 안 했으면 먼저 물어보기
+    playAgainBtn?.addEventListener('click', () => {
+      if (!hasSavedThisGame) {
+        const wantSave = confirm("현재 점수를 저장하지 않았습니다. 저장하고 새로 시작할까요?");
+        if (wantSave) {
+          let name = (playerNameInput?.value || '').trim();
+          if (!name) {
+            const ok = confirm("이름이 비어 있습니다. 'noname'으로 저장할까요?");
+            if (!ok) { playerNameInput?.focus(); return; }
+            name = 'noname';
+            if (playerNameInput) playerNameInput.value = name;
           }
+          saveCurrentRun(name, getFinalScore());
         }
-        touchLastX = t.clientX;
       }
-      // charge 모드에서는 수평 이동을 무시 (의도적으로 충전 집중)
+      // 저장했거나 저장 안 하기로 했으면 리로드
+      window.location.reload();
+    });
+
+    clearScoresBtn?.addEventListener('click', () => {
+      if (confirm('Delete all local scores?')) { saveLeaderboard([]); renderLeaderboard(); }
+    });
+
+    // Touch controls
+    const passiveFalse = { passive: false };
+    function onTouchStart(e){ e.preventDefault();
+      const t = e.touches[0]; touchActive = true; touchStartX = t.clientX; touchLastX = t.clientX; passedDeadzone = false;
+      if (isGrounded) { touchMode='charge'; isCharging=true; } else { touchMode='drag'; }
     }
-
-    function onTouchEnd(e){
-      e.preventDefault();
-
-      // 지상+충전 중이었다면 점프 발사
-      if (touchMode === 'charge' && isGrounded && isCharging) {
+    function onTouchMove(e){ e.preventDefault(); if (!touchActive) return;
+      const t=e.touches[0]; if (touchMode==='drag'){
+        if (!passedDeadzone && Math.abs(t.clientX-touchStartX)>=DEADZONE_PX) passedDeadzone=true;
+        if (passedDeadzone && !isGrounded){ const dx=t.clientX-touchLastX; player.position.x += dx*DRAG_GAIN; }
+        touchLastX=t.clientX;
+      }}
+    function onTouchEnd(e){ e.preventDefault();
+      if (touchMode==='charge' && isGrounded && isCharging){
         velocityY = Math.max(chargeTime, MIN_JUMP);
-        chargeTime = 0;
-        isCharging = false;
-        chargeDirection = 1;
-        isGrounded = false;
-        chargeFill.style.width = '0%';
+        chargeTime=0; isCharging=false; chargeDirection=1; isGrounded=false;
+        chargeFill.style.width='0%';
       }
-
-      touchActive = false;
-      touchMode = null;
+      touchActive=false; touchMode=null;
     }
-
     renderer.domElement.addEventListener('touchstart', onTouchStart, passiveFalse);
     renderer.domElement.addEventListener('touchmove',  onTouchMove,  passiveFalse);
     renderer.domElement.addEventListener('touchend',   onTouchEnd,   passiveFalse);
     renderer.domElement.addEventListener('touchcancel',onTouchEnd,   passiveFalse);
 
-    // ────────────────────────────────────────────────────────────────
     // Platforms
-    // ────────────────────────────────────────────────────────────────
     const platforms = [];
-
-    function createPlatform(x, y, type = 'normal') {
-      let width, color, special = null;
+    function createPlatform(x, y, type='normal') {
+      let width, color, special=null;
       switch (type) {
-        case 'start':  width = 10;  color = 0x888888; break;
-        case 'narrow': width = 1.2; color = 0xff4444; break;
-        case 'bounce': width = 3;   color = 0x4444ff; special = 'bounce'; break;
-        case 'vanish': width = 3;   color = 0xffff00; special = 'vanish'; break;
-        default:       width = 3;   color = 0x00aa00;
+        case 'start':  width=10;  color=0x888888; break;
+        case 'narrow': width=1.2; color=0xff4444; break;
+        case 'bounce': width=3;   color=0x4444ff; special='bounce'; break;
+        case 'vanish': width=3;   color=0xffff00; special='vanish'; break;
+        default:       width=3;   color=0x00aa00;
       }
+      const mat = new THREE.MeshBasicMaterial({ color, transparent:false, opacity:1 });
+      const mesh= new THREE.Mesh(new THREE.BoxGeometry(width,0.5,1), mat);
+      mesh.position.set(x,y,0);
 
-      const mat = new THREE.MeshBasicMaterial({ color, transparent: false, opacity: 1 });
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, 0.5, 1), mat);
-      mesh.position.set(x, y, 0);
-
-      // 숫자 라벨 DOM
       const label = document.createElement('span');
       label.className = 'platform-label';
       platformLabelsContainer.appendChild(label);
 
       mesh.userData = {
-        type, special, originalX: x,
-        amplitude: type === 'start' ? 0 : 2 + Math.random(), // 가로 진폭
-        speed: type === 'start' ? 0 : 1 + Math.random(),     // 가로 속도
-        phase: Math.random() * Math.PI * 2,
-        prevX: x, deltaX: 0,
-        label,
-        vanishStarted: false,
-        falling: false
+        type, special, originalX:x,
+        amplitude: type==='start'?0:2+Math.random(),
+        speed:     type==='start'?0:1+Math.random(),
+        phase: Math.random()*Math.PI*2,
+        prevX:x, deltaX:0, label, vanishStarted:false, falling:false
       };
-
-      scene.add(mesh);
-      platforms.push(mesh);
+      scene.add(mesh); platforms.push(mesh);
     }
 
-    // 초기 발판 생성
+    // Initial platforms
     createPlatform(0, -2, 'start');
-    for (let i = 0; i < 10; i++) {
-      const type = PLATFORM_TYPE_POOL[Math.floor(Math.random() * PLATFORM_TYPE_POOL.length)];
-      createPlatform((Math.random() - 0.5) * 5, i * 3, type);
+    for (let i=0;i<10;i++){
+      const type = PLATFORM_TYPE_POOL[Math.floor(Math.random()*PLATFORM_TYPE_POOL.length)];
+      createPlatform((Math.random()-0.5)*5, i*3, type);
     }
 
-    // 죽음 판정용 플레이트
+    // Death plate
     const deathPlate = new THREE.Mesh(
       new THREE.BoxGeometry(50, 0.5, 2),
       new THREE.MeshBasicMaterial({ color: 0x000000 })
@@ -280,77 +329,59 @@
     deathPlate.position.set(0, -10, 0);
     scene.add(deathPlate);
 
-    // 스코어/카메라 진행
+    // Score/camera
     let maxY = 0;
     let nextPlatformY = 30;
 
-    // ────────────────────────────────────────────────────────────────
-    // Game Loop
-    // ────────────────────────────────────────────────────────────────
+    // Loop
     function animate() {
       animationId = requestAnimationFrame(animate);
       const delta = clock.getDelta();
       const elapsed = clock.getElapsedTime();
 
-      // 시작 3초 무적 해제
       if (Date.now() - startTime > 3000) isInvincible = false;
 
-      // 플랫폼 이동/라벨 투영/낙하 처리
       platforms.forEach(p => {
         p.userData.prevX = p.position.x;
-
-        // 가로 왕복 이동(시작 발판 제외)
-        if (p.userData.type !== 'start' && !p.userData.falling) {
+        if (p.userData.type!=='start' && !p.userData.falling) {
           const dx = p.userData.amplitude * Math.sin(elapsed * p.userData.speed + p.userData.phase);
           p.position.x = p.userData.originalX + dx;
         }
         p.userData.deltaX = p.position.x - p.userData.prevX;
 
-        // vanish 낙하 처리
         if (p.userData.falling) {
           p.position.y -= delta * 50;
           p.material.opacity = Math.max(0, p.material.opacity - delta * 1);
           p.material.transparent = true;
         }
 
-        // 라벨 화면 좌표 갱신
         const label = p.userData.label;
-        if (label) {
-          const pos = p.position.clone();
-          pos.project(camera);
-          const sx = (pos.x + 1) / 2 * window.innerWidth;
-          const sy = (-pos.y + 1) / 2 * window.innerHeight;
-          label.style.left = `${sx}px`;
-          label.style.top = `${sy}px`;
+        if (label && label.style.display !== 'none') {
+          const pos = p.position.clone().project(camera);
+          label.style.left = `${(pos.x + 1) / 2 * window.innerWidth}px`;
+          label.style.top  = `${(-pos.y + 1) / 2 * window.innerHeight}px`;
         }
       });
 
-      // 충전 게이지(파형 왕복)
       if (isCharging && isGrounded) {
         chargeTime += chargeDirection * delta * chargeSpeed;
-        if (chargeTime >= maxCharge) { chargeTime = maxCharge; chargeDirection = -1; }
-        else if (chargeTime <= 0)     { chargeTime = 0;        chargeDirection = 1;  }
+        if (chargeTime >= maxCharge) { chargeTime=maxCharge; chargeDirection=-1; }
+        else if (chargeTime <= 0)    { chargeTime=0;        chargeDirection= 1; }
         chargeFill.style.width = `${(chargeTime / maxCharge) * 100}%`;
       }
 
-      // 키보드 공중 이동
       if (!isGrounded) {
         if (input.left)  player.position.x -= 0.1;
         if (input.right) player.position.x += 0.1;
       }
 
-      // 중력
       velocityY += (velocityY > 0) ? -0.02 : -0.006;
       player.position.y += velocityY;
 
-      // 플랫폼 위에 있을 때 플랫폼의 수평 이동량을 함께 적용
       if (isGrounded && onPlatform) player.position.x += onPlatform.userData.deltaX;
 
-      // 충돌 판정 초기화
-      onPlatform = null;
-      isGrounded = false;
+      onPlatform = null; isGrounded = false;
 
-      // 충돌 판정 (윗면 관통 체크)
       for (let i = platforms.length - 1; i >= 0; i--) {
         const p = platforms[i];
         const w = p.geometry.parameters.width;
@@ -359,77 +390,53 @@
         const platformTop = p.position.y + 0.25;
         const withinX = Math.abs(player.position.x - p.position.x) < (w / 2 + 0.5);
         const falling = velocityY <= 0;
-        const crossedPlatformTop = playerBottomPrev >= platformTop && playerBottomNow <= platformTop;
+        const crossed = playerBottomPrev >= platformTop && playerBottomNow <= platformTop;
 
-        if (withinX && crossedPlatformTop && falling && !p.userData.falling) {
+        if (withinX && crossed && falling && !p.userData.falling) {
           player.position.y = platformTop + 0.5;
-          velocityY = 0;
-          isGrounded = true;
-          onPlatform = p;
+          velocityY = 0; isGrounded = true; onPlatform = p;
 
-          // 튕김 발판
-          if (p.userData.special === 'bounce') {
-            velocityY = maxCharge;
-            isGrounded = false;
-          }
+          if (p.userData.special === 'bounce') { velocityY = maxCharge; isGrounded = false; }
 
-          // 사라지는 발판: 3초 카운트 후 낙하 전환
           if (p.userData.special === 'vanish' && !p.userData.vanishStarted) {
             p.userData.vanishStarted = true;
             const label = p.userData.label;
             let seconds = 3;
-            if (label) {
-              label.style.display = 'block';
-              label.innerText = seconds;
-            }
+            if (label) { label.style.display = 'block'; label.innerText = seconds; }
             const interval = setInterval(() => {
               seconds--;
               if (seconds <= 0) {
                 clearInterval(interval);
                 label?.remove?.();
-                p.userData.falling = true;          // 낙하 시작
+                p.userData.falling = true;
                 p.material.transparent = true;
-              } else if (label) {
-                label.innerText = seconds;
-              }
+              } else if (label) { label.innerText = seconds; }
             }, 1000);
           }
           break;
         }
       }
 
-      // 카메라 추적 & 점수
-      if (player.position.y > camera.position.y - 3) {
-        camera.position.y = player.position.y + 3;
-      }
+      if (player.position.y > camera.position.y - 3) camera.position.y = player.position.y + 3;
       if (player.position.y > maxY) maxY = player.position.y;
       scoreEl.innerText = `Score: ${Math.floor(maxY)}`;
 
-      // 무한 스폰 & 난이도 스케일(시그모이드)
       while (nextPlatformY < maxY + 30) {
         const type = PLATFORM_TYPE_POOL[Math.floor(Math.random() * PLATFORM_TYPE_POOL.length)];
-        createPlatform((Math.random() - 0.5) * 5, nextPlatformY, type);
+        createPlatform((Math.random()-0.5)*5, nextPlatformY, type);
 
-        const a = 0.002, b = 2000;
+        const a=0.002, b=2000;
         const difficultyScale = 1 / (1 + Math.exp(-a * (maxY - b)));
-
-        const baseGap = 3, maxGap = 6;
+        const baseGap=3, maxGap=6;
         const gap = baseGap + (maxGap - baseGap) * difficultyScale;
-
-        const baseJitter = 0.2, maxJitter = 2.0;
+        const baseJitter=0.2, maxJitter=2.0;
         const jitter = baseJitter + (maxJitter - baseJitter) * difficultyScale;
-
-        const finalGap = gap + (Math.random() * 2 - 1) * jitter;
-        nextPlatformY += finalGap;
+        nextPlatformY += gap + (Math.random()*2 - 1) * jitter;
       }
 
-      // 죽음 플레이트는 플레이어를 따라 일정 거리 유지
       deathPlate.position.y += delta * 1.5;
-      if (player.position.y - deathPlate.position.y > 25) {
-        deathPlate.position.y = player.position.y - 20;
-      }
+      if (player.position.y - deathPlate.position.y > 25) deathPlate.position.y = player.position.y - 20;
 
-      // 사망 조건
       const plateTop = deathPlate.position.y + 0.25;
       const playerBottom = player.position.y - 0.5;
       const withinPlateX = Math.abs(player.position.x - deathPlate.position.x) < 5;
@@ -439,18 +446,20 @@
 
       if (fellTooLow || hitDeathPlate) {
         const score = Math.floor(maxY);
-        if (score > highScore) {
-          highScore = score;
-          localStorage.setItem('highScore', String(highScore));
-        }
+        if (score > highScore) { highScore = score; localStorage.setItem('highScore', String(highScore)); }
         finalScoreText.innerText = `Your Score: ${score}`;
         highScoreText.innerText = `High Score: ${highScore}`;
         gameOverScreen.style.display = 'block';
+
+        // 자동 저장 없음 — 수동 저장 UX만
+        renderLeaderboard();
+        (playerNameInput) && setTimeout(() => playerNameInput.focus(), 0);
+        enableSaveButtonIfReady();
+
         cancelAnimationFrame(animationId);
         return;
       }
 
-      // 성능 위생: 화면 아래 객체/라벨 정리
       for (let i = platforms.length - 1; i >= 0; i--) {
         const p = platforms[i];
         if (p.position.y < camera.position.y - 40) {
