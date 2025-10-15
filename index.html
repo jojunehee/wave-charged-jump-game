@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Wave Charged Jump Game</title>
+  <style>
+    html, body { height: 100%; touch-action: none; } /* 모바일 제스처에서 브라우저 스크롤 방지 */
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; }
+
+    #score {
+      position: absolute; top: 10px; left: 10px;
+      font-size: 24px; background: rgba(255,255,255,0.7);
+      padding: 6px 10px; border-radius: 8px; z-index: 10;
+      user-select: none;
+    }
+
+    #chargeBar {
+      position: absolute; bottom: 10px; left: 50%;
+      transform: translateX(-50%); width: min(80vw, 800px); height: 20px;
+      background: #ddd; border-radius: 10px; overflow: hidden; z-index: 11;
+    }
+
+    #chargeFill {
+      height: 100%; background: red; width: 0%;
+      transition: width 0.05s linear;
+    }
+
+    #gameOverScreen {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%); background: rgba(0,0,0,0.8);
+      color: white; padding: 30px; border-radius: 12px;
+      display: none; text-align: center; z-index: 20;
+    }
+
+    #platformLabelsContainer {
+      position: absolute; top: 0; left: 0; pointer-events: none; z-index: 15;
+    }
+
+    .platform-label {
+      position: absolute;
+      font-size: 20px;
+      font-weight: bold;
+      color: black;
+      text-shadow: 1px 1px white;
+      transform: translate(-50%, -50%);
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="score">Score: 0</div>
+  <div id="chargeBar"><div id="chargeFill"></div></div>
+
+  <div id="gameOverScreen">
+    <h1>Game Over</h1>
+    <p id="finalScoreText"></p>
+    <p id="highScoreText"></p>
+    <button onclick="window.location.reload()">Play Again</button>
+  </div>
+
+  <div id="platformLabelsContainer"></div>
+
+  <script type="module">
+    // ────────────────────────────────────────────────────────────────
+    // Imports & Core Setup
+    // ────────────────────────────────────────────────────────────────
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js';
+
+    const PLATFORM_TYPE_POOL = ['normal','normal','normal','normal','normal','narrow','narrow','narrow','bounce','bounce','vanish'];
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xd0f0ff);
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 5, 10);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    window.addEventListener('resize', () => {
+      const w = window.innerWidth, h = window.innerHeight;
+      renderer.setSize(w, h);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    });
+
+    const clock = new THREE.Clock();
+    let animationId;
+
+    // ────────────────────────────────────────────────────────────────
+    // UI Elements
+    // ────────────────────────────────────────────────────────────────
+    const scoreEl = document.getElementById('score');
+    const chargeFill = document.getElementById('chargeFill');
+    const finalScoreText = document.getElementById('finalScoreText');
+    const highScoreText = document.getElementById('highScoreText');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const platformLabelsContainer = document.getElementById('platformLabelsContainer');
+
+    // ────────────────────────────────────────────────────────────────
+    // Game State
+    // ────────────────────────────────────────────────────────────────
+    const startTime = Date.now();
+    let isInvincible = true; // 시작 3초 무적
+    let highScore = parseInt(localStorage.getItem('highScore') || '0', 10);
+
+    let velocityY = 0;
+    let isGrounded = false;
+    let onPlatform = null;
+
+    // 충전 점프
+    let chargeTime = 0;
+    let isCharging = false;
+    let chargeDirection = 1; // 왕복 파형(상승/하강)
+    const maxCharge = 1.0;
+    const chargeSpeed = 0.8;
+
+    // 모바일 제스처 상태
+    let touchActive = false;
+    let touchMode = null; // 'charge' | 'drag' | null
+    let touchStartTime = 0;
+    let touchStartX = 0;
+    let touchLastX = 0;
+    let passedDeadzone = false;
+
+    const DRAG_GAIN = 0.01;  // 터치 이동 감도 (px → world)
+    const DEADZONE_PX = 8;   // 초기 미세 흔들림 무시
+    const MIN_JUMP = 0.2;    // 최소 점프력(찔끔 점프 방지)
+
+    // 플레이어
+    const player = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial({ color: 0x0000ff })
+    );
+    scene.add(player);
+    player.position.y = 0;
+
+    // 입력(키보드: 공중에서만 좌우 이동)
+    const input = { left: false, right: false };
+    document.addEventListener('keydown', e => {
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') input.left = true;
+      if (e.code === 'KeyD' || e.code === 'ArrowRight') input.right = true;
+      if (e.code === 'Space' && isGrounded) isCharging = true;
+    });
+    document.addEventListener('keyup', e => {
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') input.left = false;
+      if (e.code === 'KeyD' || e.code === 'ArrowRight') input.right = false;
+      if (e.code === 'Space' && isGrounded && isCharging) {
+        // 점프 발사
+        velocityY = Math.max(chargeTime, MIN_JUMP);
+        chargeTime = 0;
+        isCharging = false;
+        chargeDirection = 1;
+        isGrounded = false;
+        chargeFill.style.width = '0%';
+      }
+    });
+
+    // ────────────────────────────────────────────────────────────────
+    // 모바일 제스처(A형): 지상=충전, 공중=드래그 이동
+    // ────────────────────────────────────────────────────────────────
+    const passiveFalse = { passive: false };
+
+    function onTouchStart(e){
+      e.preventDefault();
+      const t = e.touches[0];
+      touchActive = true;
+      touchStartTime = performance.now();
+      touchStartX = t.clientX;
+      touchLastX = t.clientX;
+      passedDeadzone = false;
+
+      if (isGrounded) {
+        touchMode = 'charge';
+        isCharging = true;        // 지상에서 터치=충전 시작
+      } else {
+        touchMode = 'drag';       // 공중이면 드래그 모드
+      }
+    }
+
+    function onTouchMove(e){
+      e.preventDefault();
+      if (!touchActive) return;
+      const t = e.touches[0];
+
+      if (touchMode === 'drag') {
+        // 데드존 통과 여부 판단
+        if (!passedDeadzone && Math.abs(t.clientX - touchStartX) >= DEADZONE_PX) {
+          passedDeadzone = true;
+        }
+        if (passedDeadzone) {
+          const dx = t.clientX - touchLastX;
+          // 공중에서만 의미 있게 이동 (지상에서도 드래그는 받지만 플레이어 이동은 안 함)
+          if (!isGrounded) {
+            player.position.x += dx * DRAG_GAIN;
+          }
+        }
+        touchLastX = t.clientX;
+      }
+      // charge 모드에서는 수평 이동을 무시 (의도적으로 충전 집중)
+    }
+
+    function onTouchEnd(e){
+      e.preventDefault();
+
+      // 지상+충전 중이었다면 점프 발사
+      if (touchMode === 'charge' && isGrounded && isCharging) {
+        velocityY = Math.max(chargeTime, MIN_JUMP);
+        chargeTime = 0;
+        isCharging = false;
+        chargeDirection = 1;
+        isGrounded = false;
+        chargeFill.style.width = '0%';
+      }
+
+      touchActive = false;
+      touchMode = null;
+    }
+
+    renderer.domElement.addEventListener('touchstart', onTouchStart, passiveFalse);
+    renderer.domElement.addEventListener('touchmove',  onTouchMove,  passiveFalse);
+    renderer.domElement.addEventListener('touchend',   onTouchEnd,   passiveFalse);
+    renderer.domElement.addEventListener('touchcancel',onTouchEnd,   passiveFalse);
+
+    // ────────────────────────────────────────────────────────────────
+    // Platforms
+    // ────────────────────────────────────────────────────────────────
+    const platforms = [];
+
+    function createPlatform(x, y, type = 'normal') {
+      let width, color, special = null;
+      switch (type) {
+        case 'start':  width = 10;  color = 0x888888; break;
+        case 'narrow': width = 1.2; color = 0xff4444; break;
+        case 'bounce': width = 3;   color = 0x4444ff; special = 'bounce'; break;
+        case 'vanish': width = 3;   color = 0xffff00; special = 'vanish'; break;
+        default:       width = 3;   color = 0x00aa00;
+      }
+
+      const mat = new THREE.MeshBasicMaterial({ color, transparent: false, opacity: 1 });
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, 0.5, 1), mat);
+      mesh.position.set(x, y, 0);
+
+      // 숫자 라벨 DOM
+      const label = document.createElement('span');
+      label.className = 'platform-label';
+      platformLabelsContainer.appendChild(label);
+
+      mesh.userData = {
+        type, special, originalX: x,
+        amplitude: type === 'start' ? 0 : 2 + Math.random(), // 가로 진폭
+        speed: type === 'start' ? 0 : 1 + Math.random(),     // 가로 속도
+        phase: Math.random() * Math.PI * 2,
+        prevX: x, deltaX: 0,
+        label,
+        vanishStarted: false,
+        falling: false
+      };
+
+      scene.add(mesh);
+      platforms.push(mesh);
+    }
+
+    // 초기 발판 생성
+    createPlatform(0, -2, 'start');
+    for (let i = 0; i < 10; i++) {
+      const type = PLATFORM_TYPE_POOL[Math.floor(Math.random() * PLATFORM_TYPE_POOL.length)];
+      createPlatform((Math.random() - 0.5) * 5, i * 3, type);
+    }
+
+    // 죽음 판정용 플레이트
+    const deathPlate = new THREE.Mesh(
+      new THREE.BoxGeometry(50, 0.5, 2),
+      new THREE.MeshBasicMaterial({ color: 0x000000 })
+    );
+    deathPlate.position.set(0, -10, 0);
+    scene.add(deathPlate);
+
+    // 스코어/카메라 진행
+    let maxY = 0;
+    let nextPlatformY = 30;
+
+    // ────────────────────────────────────────────────────────────────
+    // Game Loop
+    // ────────────────────────────────────────────────────────────────
+    function animate() {
+      animationId = requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      const elapsed = clock.getElapsedTime();
+
+      // 시작 3초 무적 해제
+      if (Date.now() - startTime > 3000) isInvincible = false;
+
+      // 플랫폼 이동/라벨 투영/낙하 처리
+      platforms.forEach(p => {
+        p.userData.prevX = p.position.x;
+
+        // 가로 왕복 이동(시작 발판 제외)
+        if (p.userData.type !== 'start' && !p.userData.falling) {
+          const dx = p.userData.amplitude * Math.sin(elapsed * p.userData.speed + p.userData.phase);
+          p.position.x = p.userData.originalX + dx;
+        }
+        p.userData.deltaX = p.position.x - p.userData.prevX;
+
+        // vanish 낙하 처리
+        if (p.userData.falling) {
+          p.position.y -= delta * 50;
+          p.material.opacity = Math.max(0, p.material.opacity - delta * 1);
+          p.material.transparent = true;
+        }
+
+        // 라벨 화면 좌표 갱신
+        const label = p.userData.label;
+        if (label) {
+          const pos = p.position.clone();
+          pos.project(camera);
+          const sx = (pos.x + 1) / 2 * window.innerWidth;
+          const sy = (-pos.y + 1) / 2 * window.innerHeight;
+          label.style.left = `${sx}px`;
+          label.style.top = `${sy}px`;
+        }
+      });
+
+      // 충전 게이지(파형 왕복)
+      if (isCharging && isGrounded) {
+        chargeTime += chargeDirection * delta * chargeSpeed;
+        if (chargeTime >= maxCharge) { chargeTime = maxCharge; chargeDirection = -1; }
+        else if (chargeTime <= 0)     { chargeTime = 0;        chargeDirection = 1;  }
+        chargeFill.style.width = `${(chargeTime / maxCharge) * 100}%`;
+      }
+
+      // 키보드 공중 이동
+      if (!isGrounded) {
+        if (input.left)  player.position.x -= 0.1;
+        if (input.right) player.position.x += 0.1;
+      }
+
+      // 중력
+      velocityY += (velocityY > 0) ? -0.02 : -0.006;
+      player.position.y += velocityY;
+
+      // 플랫폼 위에 있을 때 플랫폼의 수평 이동량을 함께 적용
+      if (isGrounded && onPlatform) player.position.x += onPlatform.userData.deltaX;
+
+      // 충돌 판정 초기화
+      onPlatform = null;
+      isGrounded = false;
+
+      // 충돌 판정 (윗면 관통 체크)
+      for (let i = platforms.length - 1; i >= 0; i--) {
+        const p = platforms[i];
+        const w = p.geometry.parameters.width;
+        const playerBottomPrev = player.position.y - velocityY - 0.5;
+        const playerBottomNow  = player.position.y - 0.5;
+        const platformTop = p.position.y + 0.25;
+        const withinX = Math.abs(player.position.x - p.position.x) < (w / 2 + 0.5);
+        const falling = velocityY <= 0;
+        const crossedPlatformTop = playerBottomPrev >= platformTop && playerBottomNow <= platformTop;
+
+        if (withinX && crossedPlatformTop && falling && !p.userData.falling) {
+          player.position.y = platformTop + 0.5;
+          velocityY = 0;
+          isGrounded = true;
+          onPlatform = p;
+
+          // 튕김 발판
+          if (p.userData.special === 'bounce') {
+            velocityY = maxCharge;
+            isGrounded = false;
+          }
+
+          // 사라지는 발판: 3초 카운트 후 낙하 전환
+          if (p.userData.special === 'vanish' && !p.userData.vanishStarted) {
+            p.userData.vanishStarted = true;
+            const label = p.userData.label;
+            let seconds = 3;
+            if (label) {
+              label.style.display = 'block';
+              label.innerText = seconds;
+            }
+            const interval = setInterval(() => {
+              seconds--;
+              if (seconds <= 0) {
+                clearInterval(interval);
+                label?.remove?.();
+                p.userData.falling = true;          // 낙하 시작
+                p.material.transparent = true;
+              } else if (label) {
+                label.innerText = seconds;
+              }
+            }, 1000);
+          }
+          break;
+        }
+      }
+
+      // 카메라 추적 & 점수
+      if (player.position.y > camera.position.y - 3) {
+        camera.position.y = player.position.y + 3;
+      }
+      if (player.position.y > maxY) maxY = player.position.y;
+      scoreEl.innerText = `Score: ${Math.floor(maxY)}`;
+
+      // 무한 스폰 & 난이도 스케일(시그모이드)
+      while (nextPlatformY < maxY + 30) {
+        const type = PLATFORM_TYPE_POOL[Math.floor(Math.random() * PLATFORM_TYPE_POOL.length)];
+        createPlatform((Math.random() - 0.5) * 5, nextPlatformY, type);
+
+        const a = 0.002, b = 2000;
+        const difficultyScale = 1 / (1 + Math.exp(-a * (maxY - b)));
+
+        const baseGap = 3, maxGap = 6;
+        const gap = baseGap + (maxGap - baseGap) * difficultyScale;
+
+        const baseJitter = 0.2, maxJitter = 2.0;
+        const jitter = baseJitter + (maxJitter - baseJitter) * difficultyScale;
+
+        const finalGap = gap + (Math.random() * 2 - 1) * jitter;
+        nextPlatformY += finalGap;
+      }
+
+      // 죽음 플레이트는 플레이어를 따라 일정 거리 유지
+      deathPlate.position.y += delta * 1.5;
+      if (player.position.y - deathPlate.position.y > 25) {
+        deathPlate.position.y = player.position.y - 20;
+      }
+
+      // 사망 조건
+      const plateTop = deathPlate.position.y + 0.25;
+      const playerBottom = player.position.y - 0.5;
+      const withinPlateX = Math.abs(player.position.x - deathPlate.position.x) < 5;
+      const lowestY = platforms.reduce((min, p) => Math.min(min, p.position.y), Infinity);
+      const fellTooLow = player.position.y < lowestY - 5;
+      const hitDeathPlate = !isInvincible && playerBottom <= plateTop && withinPlateX;
+
+      if (fellTooLow || hitDeathPlate) {
+        const score = Math.floor(maxY);
+        if (score > highScore) {
+          highScore = score;
+          localStorage.setItem('highScore', String(highScore));
+        }
+        finalScoreText.innerText = `Your Score: ${score}`;
+        highScoreText.innerText = `High Score: ${highScore}`;
+        gameOverScreen.style.display = 'block';
+        cancelAnimationFrame(animationId);
+        return;
+      }
+
+      // 성능 위생: 화면 아래 객체/라벨 정리
+      for (let i = platforms.length - 1; i >= 0; i--) {
+        const p = platforms[i];
+        if (p.position.y < camera.position.y - 40) {
+          p.userData.label?.remove?.();
+          scene.remove(p);
+          platforms.splice(i, 1);
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+  </script>
+</body>
+</html>

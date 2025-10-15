@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Wave Charged Jump Game</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; }
+
+    #score {
+      position: absolute; top: 10px; left: 10px;
+      font-size: 24px; background: rgba(255,255,255,0.7);
+      padding: 6px 10px; border-radius: 8px; z-index: 10;
+    }
+
+    #chargeBar {
+      position: absolute; bottom: 10px; left: 50%;
+      transform: translateX(-50%); width: 800px; height: 20px;
+      background: #ddd; border-radius: 10px; overflow: hidden; z-index: 11;
+    }
+
+    #chargeFill {
+      height: 100%; background: red; width: 0%;
+      transition: width 0.05s linear;
+    }
+
+    #gameOverScreen {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%); background: rgba(0,0,0,0.8);
+      color: white; padding: 30px; border-radius: 12px;
+      display: none; text-align: center; z-index: 20;
+    }
+
+    #platformLabelsContainer {
+      position: absolute; top: 0; left: 0; pointer-events: none; z-index: 15;
+    }
+
+    .platform-label {
+      position: absolute;
+      font-size: 20px;
+      font-weight: bold;
+      color: black;
+      text-shadow: 1px 1px white;
+      transform: translate(-50%, -50%);
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="score">Score: 0</div>
+  <div id="chargeBar"><div id="chargeFill"></div></div>
+  <div id="gameOverScreen">
+    <h1>Game Over</h1>
+    <p id="finalScoreText"></p>
+    <p id="highScoreText"></p>
+    <button onclick="window.location.reload()">Play Again</button>
+  </div>
+  <div id="platformLabelsContainer"></div>
+
+  <script type="module">
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js';
+
+    const PLATFORM_TYPE_POOL = ['normal','normal','normal','normal','normal','narrow','narrow','narrow','bounce','bounce','vanish'];
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xd0f0ff);
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 5, 10);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const clock = new THREE.Clock();
+    let animationId;
+
+    const scoreEl = document.getElementById('score');
+    const chargeFill = document.getElementById('chargeFill');
+    const finalScoreText = document.getElementById('finalScoreText');
+    const highScoreText = document.getElementById('highScoreText');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const platformLabelsContainer = document.getElementById('platformLabelsContainer');
+
+    const startTime = Date.now();
+    let isInvincible = true;
+    let highScore = localStorage.getItem('highScore') || 0;
+
+    let velocityY = 0;
+    let isGrounded = false;
+    let onPlatform = null;
+    let chargeTime = 0;
+    let isCharging = false;
+    let chargeDirection = 1;
+    const maxCharge = 1.0;
+    const chargeSpeed = 0.8;
+
+    const player = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial({ color: 0x0000ff })
+    );
+    scene.add(player);
+    player.position.y = 0;
+
+    const input = { left: false, right: false };
+    document.addEventListener('keydown', e => {
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') input.left = true;
+      if (e.code === 'KeyD' || e.code === 'ArrowRight') input.right = true;
+      if (e.code === 'Space' && isGrounded) isCharging = true;
+    });
+    document.addEventListener('keyup', e => {
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') input.left = false;
+      if (e.code === 'KeyD' || e.code === 'ArrowRight') input.right = false;
+      if (e.code === 'Space' && isGrounded && isCharging) {
+        velocityY = chargeTime;
+        chargeTime = 0;
+        isCharging = false;
+        chargeDirection = 1;
+        isGrounded = false;
+        chargeFill.style.width = '0%';
+      }
+    });
+
+    const platforms = [];
+    function createPlatform(x, y, type = 'normal') {
+      let width, color, special = null;
+      switch (type) {
+        case 'start': width = 10; color = 0x888888; break;
+        case 'narrow': width = 1.2; color = 0xff4444; break;
+        case 'bounce': width = 3; color = 0x4444ff; special = 'bounce'; break;
+        case 'vanish': width = 3; color = 0xffff00; special = 'vanish'; break;
+        default: width = 3; color = 0x00aa00;
+      }
+      const mat = new THREE.MeshBasicMaterial({ color });
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, 0.5, 1), mat);
+      mesh.position.set(x, y, 0);
+
+      // ⏱️ 숫자 표시용 DOM 요소
+      const label = document.createElement('span');
+      label.className = 'platform-label';
+      platformLabelsContainer.appendChild(label);
+
+      mesh.userData = {
+        type, special, originalX: x,
+        amplitude: type === 'start' ? 0 : 2 + Math.random(),
+        speed: type === 'start' ? 0 : 1 + Math.random(),
+        phase: Math.random() * Math.PI * 2,
+        prevX: x, deltaX: 0,
+        label, vanishStarted: false
+      };
+
+      scene.add(mesh);
+      platforms.push(mesh);
+    }
+
+    createPlatform(0, -2, 'start');
+    for (let i = 0; i < 10; i++) {
+      const type = PLATFORM_TYPE_POOL[Math.floor(Math.random() * PLATFORM_TYPE_POOL.length)];
+      createPlatform((Math.random() - 0.5) * 5, i * 3, type);
+    }
+
+    const deathPlate = new THREE.Mesh(
+      new THREE.BoxGeometry(50, 0.5, 2),
+      new THREE.MeshBasicMaterial({ color: 0x000000 })
+    );
+    deathPlate.position.set(0, -10, 0);
+    scene.add(deathPlate);
+
+    let maxY = 0;
+    let nextPlatformY = 30;
+
+    function animate() {
+      animationId = requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      const elapsed = clock.getElapsedTime();
+      if (Date.now() - startTime > 3000) isInvincible = false;
+
+      platforms.forEach(p => {
+        p.userData.prevX = p.position.x;
+        if (p.userData.type !== 'start') {
+          const dx = p.userData.amplitude * Math.sin(elapsed * p.userData.speed + p.userData.phase);
+          p.position.x = p.userData.originalX + dx;
+        }
+        p.userData.deltaX = p.position.x - p.userData.prevX;
+        
+// ✅ 떨어지는 vanish 발판 낙하 처리
+if (p.userData.falling) {
+  p.position.y -= delta * 50; // 떨어지는 속도
+  p.material.opacity = Math.max(0, p.material.opacity - delta * 1); // 점점 투명해짐
+
+  if (p.position.y < camera.position.y - 20) {
+    scene.remove(p);
+    const index = platforms.indexOf(p);
+    if (index !== -1) platforms.splice(index, 1);
+  }
+}
+
+        // 🧮 텍스트 위치 갱신
+        const label = p.userData.label;
+        const pos = p.position.clone();
+        pos.project(camera);
+        const sx = (pos.x + 1) / 2 * window.innerWidth;
+        const sy = (-pos.y + 1) / 2 * window.innerHeight;
+        label.style.left = `${sx}px`;
+        label.style.top = `${sy}px`;
+      });
+
+      if (isCharging && isGrounded) {
+        chargeTime += chargeDirection * delta * chargeSpeed;
+        if (chargeTime >= maxCharge) {
+          chargeTime = maxCharge; chargeDirection = -1;
+        } else if (chargeTime <= 0) {
+          chargeTime = 0; chargeDirection = 1;
+        }
+        chargeFill.style.width = `${(chargeTime / maxCharge) * 100}%`;
+      }
+
+      if (!isGrounded) {
+        if (input.left) player.position.x -= 0.1;
+        if (input.right) player.position.x += 0.1;
+      }
+
+      velocityY += (velocityY > 0) ? -0.02 : -0.006;
+      player.position.y += velocityY;
+
+      if (isGrounded && onPlatform) player.position.x += onPlatform.userData.deltaX;
+
+      onPlatform = null;
+      isGrounded = false;
+      for (let i = platforms.length - 1; i >= 0; i--) {
+        const p = platforms[i];
+        const w = p.geometry.parameters.width;
+        const playerBottomPrev = player.position.y - velocityY - 0.5;
+        const playerBottomNow = player.position.y - 0.5;
+        const platformTop = p.position.y + 0.25;
+        const withinX = Math.abs(player.position.x - p.position.x) < (w / 2 + 0.5);
+        const falling = velocityY <= 0;
+        const crossedPlatformTop = playerBottomPrev >= platformTop && playerBottomNow <= platformTop;
+
+        if (withinX && crossedPlatformTop && falling) {
+          player.position.y = platformTop + 0.5;
+          velocityY = 0;
+          isGrounded = true;
+          onPlatform = p;
+
+          if (p.userData.special === 'bounce') {
+            velocityY = maxCharge;
+            isGrounded = false;
+          }
+
+          if (p.userData.special === 'vanish' && !p.userData.vanishStarted) {
+  p.userData.vanishStarted = true;
+
+  const label = p.userData.label;
+  label.style.display = 'block';
+  let seconds = 3;
+  label.innerText = seconds;
+
+  const interval = setInterval(() => {
+    seconds--;
+    if (seconds <= 0) {
+      clearInterval(interval);
+      label.remove();
+      // ✅ 삭제 대신 낙하 설정
+      p.userData.falling = true;
+      p.material.transparent = true;
+    } else {
+      label.innerText = seconds;
+    }
+  }, 1000);
+}
+
+          break;
+        }
+      }
+
+      if (player.position.y > camera.position.y - 3) {
+        camera.position.y = player.position.y + 3;
+      }
+      if (player.position.y > maxY) maxY = player.position.y;
+      scoreEl.innerText = `Score: ${Math.floor(maxY)}`;
+
+      while (nextPlatformY < maxY + 30) {
+  const type = PLATFORM_TYPE_POOL[Math.floor(Math.random() * PLATFORM_TYPE_POOL.length)];
+  createPlatform((Math.random() - 0.5) * 5, nextPlatformY, type);
+
+  // 🎯 난이도 스케일 (시그모이드 기반)
+  const a = 0.002;
+  const b = 2000;
+  const difficultyScale = 1 / (1 + Math.exp(-a * (maxY - b)));
+
+  // ⬆️ 간격 증가
+  const baseGap = 3;
+  const maxGap = 6;
+  const gap = baseGap + (maxGap - baseGap) * difficultyScale;
+
+  // ⬆️ 랜덤성 증가
+  const baseJitter = 0.2;
+  const maxJitter = 2.0;
+  const jitter = baseJitter + (maxJitter - baseJitter) * difficultyScale;
+
+  // 최종 간격
+  const finalGap = gap + (Math.random() * 2 - 1) * jitter;
+
+  nextPlatformY += finalGap;
+}
+
+
+      deathPlate.position.y += delta * 1.5;
+      if (player.position.y - deathPlate.position.y > 25) {
+        deathPlate.position.y = player.position.y - 20;
+      }
+
+      const plateTop = deathPlate.position.y + 0.25;
+      const playerBottom = player.position.y - 0.5;
+      const withinPlateX = Math.abs(player.position.x - deathPlate.position.x) < 5;
+
+      const lowestY = platforms.reduce((min, p) => Math.min(min, p.position.y), Infinity);
+      const fellTooLow = player.position.y < lowestY - 5;
+      const hitDeathPlate = !isInvincible && playerBottom <= plateTop && withinPlateX;
+
+      if (fellTooLow || hitDeathPlate) {
+        const score = Math.floor(maxY);
+        if (score > highScore) {
+          highScore = score;
+          localStorage.setItem('highScore', highScore);
+        }
+        finalScoreText.innerText = `Your Score: ${score}`;
+        highScoreText.innerText = `High Score: ${highScore}`;
+        gameOverScreen.style.display = 'block';
+        cancelAnimationFrame(animationId);
+        return;
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+  </script>
+</body>
+</html>
