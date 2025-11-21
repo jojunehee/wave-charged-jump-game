@@ -1,0 +1,5 @@
+com\jojunehee\wcjg\score\ScoreController.class
+com\jojunehee\wcjg\score\ScoreService.class
+com\jojunehee\wcjg\WcjgApplication.class
+com\jojunehee\wcjg\score\ScoreRepository.class
+com\jojunehee\wcjg\score\Score.class

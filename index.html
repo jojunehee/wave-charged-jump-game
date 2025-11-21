@@ -57,7 +57,6 @@
     </div>
 
     <div style="margin-top:10px;">
-      <!-- ⛔ onclick 제거: JS에서 확인 로직 처리 -->
       <button id="playAgainBtn">Play Again</button>
     </div>
 
@@ -101,7 +100,9 @@
     const clock = new THREE.Clock();
     let animationId;
 
+    // ─────────────────────────────────────
     // UI
+    // ─────────────────────────────────────
     const scoreEl = document.getElementById('score');
     const chargeFill = document.getElementById('chargeFill');
     const finalScoreText = document.getElementById('finalScoreText');
@@ -115,7 +116,54 @@
     const clearScoresBtn  = document.getElementById('clearScoresBtn');
     const nameHint        = document.getElementById('nameHint');
 
+    // ─────────────────────────────────────
+    // 서버 API 연결 (로컬/배포 자동 분기)
+    // ─────────────────────────────────────
+    const API_BASE =
+      (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+        ? 'http://localhost:8080'
+        : 'https://wcjg.onrender.com'; // ← 배포 서버 시 주소로 교체
+
+    async function postServerScore(name, score) {
+      try {
+        const res = await fetch(`${API_BASE}/api/scores`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, score })
+        });
+        if (!res.ok) throw new Error('post failed');
+        return await res.json();
+      } catch (e) {
+        console.warn('server score post failed:', e);
+        return null;
+      }
+    }
+
+    async function fetchServerLeaderboard(limit = 20) {
+      try {
+        const res = await fetch(`${API_BASE}/api/scores/top?limit=${limit}`, { method: 'GET' });
+        if (!res.ok) throw new Error('fetch failed');
+        return await res.json(); // { items:[{rank,name,score,createdAt,id}, ...] }
+      } catch (e) {
+        console.warn('server leaderboard fetch failed:', e);
+        return null;
+      }
+    }
+
+    function renderServerLeaderboardData(data) {
+      if (!data || !Array.isArray(data.items)) return false;
+      leaderboardList.innerHTML = '';
+      data.items.forEach(item => {
+        const li = document.createElement('li');
+        li.textContent = `#${item.rank} ${item.name} — ${item.score}`;
+        leaderboardList.appendChild(li);
+      });
+      return true;
+    }
+
+    // ─────────────────────────────────────
     // Game state
+    // ─────────────────────────────────────
     const startTime = Date.now();
     let isInvincible = true;
     let highScore = parseInt(localStorage.getItem('highScore') || '0', 10);
@@ -125,8 +173,9 @@
     let touchActive = false, touchMode = null, touchStartX = 0, touchLastX = 0, passedDeadzone = false;
     const DRAG_GAIN = 0.01, DEADZONE_PX = 8, MIN_JUMP = 0.2;
 
-    // 저장 흐름 상태
+    // 저장 흐름 상태 / 최종 점수 캐시
     let hasSavedThisGame = false;
+    let finalScoreValue = 0;
 
     // Player
     const player = new THREE.Mesh(
@@ -153,7 +202,9 @@
       }
     });
 
-    // Local leaderboard
+    // ─────────────────────────────────────
+    // Local leaderboard (fallback)
+    // ─────────────────────────────────────
     const LB_STORAGE_KEY = 'wcjg_leaderboard_v1';
     const LAST_NAME_KEY  = 'wcjg_last_name';
 
@@ -170,7 +221,6 @@
       const now = new Date().toISOString();
       const list = loadLeaderboard();
 
-      // 같은 이름은 최고점만 유지(동점은 최신 날짜)
       const map = new Map();
       for (const e of list) {
         const prev = map.get(e.name);
@@ -206,11 +256,7 @@
         submitScoreBtn.style.opacity = submitScoreBtn.disabled ? '0.6' : '1';
       }
     }
-    function getFinalScore() {
-      const scoreText = finalScoreText.textContent || '';
-      const m = scoreText.match(/(\d+)/);
-      return m ? parseInt(m[1], 10) : Math.floor(maxY);
-    }
+
     function saveCurrentRun(name, score) {
       if (hasSavedThisGame) return;
       recordScore(name, score);
@@ -223,8 +269,8 @@
     // 이름 입력 변화 → 버튼 활성화만
     playerNameInput?.addEventListener('input', enableSaveButtonIfReady);
 
-    // Save 버튼: 이름 없으면 noname 저장 여부 확인
-    submitScoreBtn?.addEventListener('click', () => {
+    // Save 버튼: 이름 없으면 noname 확인 → 로컬 저장 → 서버 저장 → 서버 랭킹 새로고침
+    submitScoreBtn?.addEventListener('click', async () => {
       if (hasSavedThisGame) return;
       let name = (playerNameInput?.value || '').trim();
       if (!name) {
@@ -234,7 +280,18 @@
         name = 'noname';
         if (playerNameInput) playerNameInput.value = name;
       }
-      saveCurrentRun(name, getFinalScore());
+
+      // 1) 로컬 저장
+      saveCurrentRun(name, finalScoreValue);
+
+      // 2) 서버 저장 (실패해도 흐름 유지)
+      await postServerScore(name, finalScoreValue);
+
+      // 3) 서버 랭킹 로드 시도 (성공 시 서버 랭킹으로 교체, 실패 시 로컬 유지)
+      const serverList = await fetchServerLeaderboard(20);
+      if (!renderServerLeaderboardData(serverList)) {
+        console.log('Server leaderboard unavailable. Showing local leaderboard.');
+      }
     });
 
     // Play Again: 저장 안 했으면 먼저 물어보기
@@ -249,10 +306,9 @@
             name = 'noname';
             if (playerNameInput) playerNameInput.value = name;
           }
-          saveCurrentRun(name, getFinalScore());
+          saveCurrentRun(name, finalScoreValue);
         }
       }
-      // 저장했거나 저장 안 하기로 했으면 리로드
       window.location.reload();
     });
 
@@ -260,7 +316,9 @@
       if (confirm('Delete all local scores?')) { saveLeaderboard([]); renderLeaderboard(); }
     });
 
+    // ─────────────────────────────────────
     // Touch controls
+    // ─────────────────────────────────────
     const passiveFalse = { passive: false };
     function onTouchStart(e){ e.preventDefault();
       const t = e.touches[0]; touchActive = true; touchStartX = t.clientX; touchLastX = t.clientX; passedDeadzone = false;
@@ -285,7 +343,9 @@
     renderer.domElement.addEventListener('touchend',   onTouchEnd,   passiveFalse);
     renderer.domElement.addEventListener('touchcancel',onTouchEnd,   passiveFalse);
 
+    // ─────────────────────────────────────
     // Platforms
+    // ─────────────────────────────────────
     const platforms = [];
     function createPlatform(x, y, type='normal') {
       let width, color, special=null;
@@ -323,7 +383,7 @@
 
     // Death plate
     const deathPlate = new THREE.Mesh(
-      new THREE.BoxGeometry(50, 0.5, 2),
+      new THREE.BoxGeometry(400, 0.5, 2),
       new THREE.MeshBasicMaterial({ color: 0x000000 })
     );
     deathPlate.position.set(0, -10, 0);
@@ -451,8 +511,17 @@
         highScoreText.innerText = `High Score: ${highScore}`;
         gameOverScreen.style.display = 'block';
 
-        // 자동 저장 없음 — 수동 저장 UX만
-        renderLeaderboard();
+        // 최종 점수 캐싱
+        finalScoreValue = score;
+
+        // 서버 랭킹 먼저 시도 → 실패 시 로컬로 폴백
+        (async () => {
+          const serverData = await fetchServerLeaderboard(20);
+          if (!renderServerLeaderboardData(serverData)) {
+            renderLeaderboard();
+          }
+        })();
+
         (playerNameInput) && setTimeout(() => playerNameInput.focus(), 0);
         enableSaveButtonIfReady();
 
