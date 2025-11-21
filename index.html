@@ -1,42 +1,96 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
-  <title>Wave Charged Jump Game (v1.6)</title>
+  <title>Wave Charged Jump Game (v1.8)</title>
   <style>
-    html, body { height: 100%; touch-action: none; }
-    body { margin: 0; overflow: hidden; }
-    canvas { display: block; }
+    html,
+    body {
+      height: 100%;
+      touch-action: none;
+    }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+    }
 
     #score {
-      position: absolute; top: 10px; left: 10px;
-      font-size: 24px; background: rgba(255,255,255,0.7);
-      padding: 6px 10px; border-radius: 8px; z-index: 10;
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      font-size: 24px;
+      background: rgba(255, 255, 255, 0.7);
+      padding: 6px 10px;
+      border-radius: 8px;
+      z-index: 10;
       user-select: none;
     }
 
     #chargeBar {
-      position: absolute; bottom: 10px; left: 50%;
-      transform: translateX(-50%); width: min(80vw, 800px); height: 20px;
-      background: #ddd; border-radius: 10px; overflow: hidden; z-index: 11;
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(80vw, 800px);
+      height: 20px;
+      background: #ddd;
+      border-radius: 10px;
+      overflow: hidden;
+      z-index: 11;
     }
-    #chargeFill { height: 100%; background: red; width: 0%; }
+
+    #chargeFill {
+      height: 100%;
+      background: red;
+      width: 0%;
+    }
 
     #gameOverScreen {
-      position: absolute; top: 50%; left: 50%;
-      transform: translate(-50%, -50%); background: rgba(0,0,0,0.8);
-      color: white; padding: 30px; border-radius: 12px;
-      display: none; text-align: center; z-index: 20; min-width: 320px;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 30px;
+      border-radius: 12px;
+      display: none;
+      text-align: center;
+      z-index: 20;
+      min-width: 320px;
     }
 
-    #platformLabelsContainer { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 15; }
-    .platform-label { position: absolute; font-size: 20px; font-weight: bold; color: black;
-      text-shadow: 1px 1px white; transform: translate(-50%, -50%); display: none; }
+    #platformLabelsContainer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      z-index: 15;
+    }
+
+    .platform-label {
+      position: absolute;
+      font-size: 20px;
+      font-weight: bold;
+      color: black;
+      text-shadow: 1px 1px white;
+      transform: translate(-50%, -50%);
+      display: none;
+    }
   </style>
 </head>
+
 <body>
   <div id="score">Score: 0</div>
-  <div id="chargeBar"><div id="chargeFill"></div></div>
+  <div id="chargeBar">
+    <div id="chargeFill"></div>
+  </div>
 
   <!-- Game Over + Leaderboard UI -->
   <div id="gameOverScreen">
@@ -44,10 +98,10 @@
     <p id="finalScoreText"></p>
 
     <div style="margin-top:12px;">
-      <input id="playerNameInput" type="text" maxlength="24"
-             placeholder="Your name" style="padding:8px;border-radius:6px;border:1px solid #ccc;width:220px;">
+      <input id="playerNameInput" type="text" maxlength="24" placeholder="Your name"
+        style="padding:8px;border-radius:6px;border:1px solid #ccc;width:220px;">
       <button id="submitScoreBtn" disabled
-              style="padding:8px 12px;border-radius:6px;border:0;background:#4CAF50;color:#fff;cursor:pointer;opacity:0.6;">
+        style="padding:8px 12px;border-radius:6px;border:0;background:#4CAF50;color:#fff;cursor:pointer;opacity:0.6;">
         Save Score
       </button>
       <div id="nameHint" style="margin-top:6px;font-size:12px;color:#ffb300;display:none;">
@@ -67,10 +121,79 @@
 
   <div id="platformLabelsContainer"></div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
   <script type="module">
     import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js';
 
-    const PLATFORM_TYPE_POOL = ['normal','normal','normal','normal','normal','narrow','narrow','narrow','bounce','bounce','vanish'];
+    // ─────────────────────────────────────
+    // Sound Effects (Tone.js)
+    // ─────────────────────────────────────
+    let audioStarted = false;
+    const synth = new Tone.Synth().toDestination();
+    const membraneSynth = new Tone.MembraneSynth().toDestination();
+    
+    // 충전 사운드용 오실레이터
+    let chargeOsc = null;
+
+    async function startAudio() {
+      if (!audioStarted) {
+        await Tone.start();
+        audioStarted = true;
+      }
+    }
+
+    function startChargeSound() {
+      if (!audioStarted) return;
+      if (chargeOsc) return; // 이미 재생 중이면 무시
+      chargeOsc = new Tone.Oscillator({
+        frequency: 200,
+        type: "sine",
+        volume: -15
+      }).toDestination();
+      chargeOsc.start();
+    }
+
+    function updateChargeSound(chargeRatio) {
+      if (chargeOsc) {
+        chargeOsc.frequency.value = 200 + chargeRatio * 600; // 200Hz ~ 800Hz
+      }
+    }
+
+    function stopChargeSound() {
+      if (chargeOsc) {
+        chargeOsc.stop();
+        chargeOsc.dispose();
+        chargeOsc = null;
+      }
+    }
+
+    function playJumpSound() {
+      if (!audioStarted) return;
+      synth.triggerAttackRelease("E6", "0.05");
+    }
+
+    function playLandSound() {
+      if (!audioStarted) return;
+      synth.triggerAttackRelease("G3", "0.03");
+    }
+
+    function playBounceSound() {
+      if (!audioStarted) return;
+      synth.triggerAttackRelease("G5", "0.1");
+    }
+
+    function playGameOverSound() {
+      if (!audioStarted) return;
+      synth.triggerAttackRelease("C3", "0.3");
+    }
+
+    function playSaveSound() {
+      if (!audioStarted) return;
+      synth.triggerAttackRelease("E5", "0.1");
+      setTimeout(() => synth.triggerAttackRelease("G5", "0.1"), 100);
+    }
+
+    const PLATFORM_TYPE_POOL = ['normal', 'normal', 'normal', 'normal', 'normal', 'narrow', 'narrow', 'narrow', 'bounce', 'bounce', 'vanish'];
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xd0f0ff);
@@ -103,10 +226,10 @@
     const gameOverScreen = document.getElementById('gameOverScreen');
     const platformLabelsContainer = document.getElementById('platformLabelsContainer');
     const playerNameInput = document.getElementById('playerNameInput');
-    const submitScoreBtn  = document.getElementById('submitScoreBtn');
-    const playAgainBtn    = document.getElementById('playAgainBtn');
+    const submitScoreBtn = document.getElementById('submitScoreBtn');
+    const playAgainBtn = document.getElementById('playAgainBtn');
     const leaderboardList = document.getElementById('leaderboardList');
-    const nameHint        = document.getElementById('nameHint');
+    const nameHint = document.getElementById('nameHint');
 
     // ─────────────────────────────────────
     // 서버 API 연결 (로컬/배포 자동 분기)
@@ -115,6 +238,13 @@
       (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
         ? 'http://localhost:8080'
         : 'https://wave-charged-jump-game.onrender.com';
+
+    // 서버 깨우기 (10분마다 ping)
+    setInterval(async () => {
+      try {
+        await fetch(`${API_BASE}/api/scores/top?limit=1`);
+      } catch (e) { /* 무시 */ }
+    }, 10 * 60 * 1000);
 
     async function postServerScore(name, score) {
       try {
@@ -131,7 +261,7 @@
       }
     }
 
-    async function fetchServerLeaderboard(limit = 20) {
+    async function fetchServerLeaderboard(limit = 10) {
       try {
         const res = await fetch(`${API_BASE}/api/scores/top?limit=${limit}`, { method: 'GET' });
         if (!res.ok) throw new Error('fetch failed');
@@ -178,30 +308,29 @@
 
     // Keyboard
     const input = { left: false, right: false };
-    document.addEventListener('keydown', e => {
+    document.addEventListener('keydown', async e => {
       if (e.code === 'KeyA' || e.code === 'ArrowLeft') input.left = true;
       if (e.code === 'KeyD' || e.code === 'ArrowRight') input.right = true;
-      if (e.code === 'Space' && isGrounded) isCharging = true;
+      if (e.code === 'Space' && isGrounded && !isCharging) {
+        await startAudio();
+        isCharging = true;
+        startChargeSound();
+      }
     });
     document.addEventListener('keyup', e => {
       if (e.code === 'KeyA' || e.code === 'ArrowLeft') input.left = false;
       if (e.code === 'KeyD' || e.code === 'ArrowRight') input.right = false;
-      if (e.code === 'Space' && isGrounded && isCharging) {
-        velocityY = Math.max(chargeTime, MIN_JUMP);
-        chargeTime = 0; isCharging = false; chargeDirection = 1; isGrounded = false;
+      if (e.code === 'Space' && isCharging) {
+        stopChargeSound();
+        if (isGrounded) {
+          velocityY = Math.max(chargeTime, MIN_JUMP);
+          isGrounded = false;
+          playJumpSound();
+        }
+        chargeTime = 0; isCharging = false; chargeDirection = 1;
         chargeFill.style.width = '0%';
       }
     });
-
-    // ─────────────────────────────────────
-    // 이름 기억 (localStorage)
-    // ─────────────────────────────────────
-    const LAST_NAME_KEY = 'wcjg_last_name';
-
-    (function presetName(){
-      const last = localStorage.getItem(LAST_NAME_KEY);
-      if (playerNameInput && last) playerNameInput.value = last;
-    })();
 
     function enableSaveButtonIfReady() {
       const hasName = !!(playerNameInput?.value.trim());
@@ -217,10 +346,6 @@
     async function saveToServer(name, score) {
       if (hasSavedThisGame) return true;
 
-      // 이름 기억
-      localStorage.setItem(LAST_NAME_KEY, name);
-
-      // 서버 저장
       const result = await postServerScore(name, score);
       if (!result) {
         alert('서버 저장에 실패했습니다. 다시 시도해주세요.');
@@ -233,8 +358,9 @@
         submitScoreBtn.textContent = 'Saved!';
       }
 
-      // 서버 랭킹 새로고침
-      const serverList = await fetchServerLeaderboard(20);
+      playSaveSound();
+
+      const serverList = await fetchServerLeaderboard(10);
       renderServerLeaderboardData(serverList);
 
       return true;
@@ -271,7 +397,7 @@
             if (playerNameInput) playerNameInput.value = name;
           }
           const saved = await saveToServer(name, finalScoreValue);
-          if (!saved) return; // 저장 실패하면 새로고침 안 함
+          if (!saved) return;
         }
       }
       window.location.reload();
@@ -281,65 +407,81 @@
     // Touch controls
     // ─────────────────────────────────────
     const passiveFalse = { passive: false };
-    function onTouchStart(e){ e.preventDefault();
+    async function onTouchStart(e) {
+      e.preventDefault();
+      await startAudio();
       const t = e.touches[0]; touchActive = true; touchStartX = t.clientX; touchLastX = t.clientX; passedDeadzone = false;
-      if (isGrounded) { touchMode='charge'; isCharging=true; } else { touchMode='drag'; }
-    }
-    function onTouchMove(e){ e.preventDefault(); if (!touchActive) return;
-      const t=e.touches[0]; if (touchMode==='drag'){
-        if (!passedDeadzone && Math.abs(t.clientX-touchStartX)>=DEADZONE_PX) passedDeadzone=true;
-        if (passedDeadzone && !isGrounded){ const dx=t.clientX-touchLastX; player.position.x += dx*DRAG_GAIN; }
-        touchLastX=t.clientX;
-      }}
-    function onTouchEnd(e){ e.preventDefault();
-      if (touchMode==='charge' && isGrounded && isCharging){
-        velocityY = Math.max(chargeTime, MIN_JUMP);
-        chargeTime=0; isCharging=false; chargeDirection=1; isGrounded=false;
-        chargeFill.style.width='0%';
+      if (isGrounded && !isCharging) { 
+        touchMode = 'charge'; 
+        isCharging = true; 
+        startChargeSound();
+      } else { 
+        touchMode = 'drag'; 
       }
-      touchActive=false; touchMode=null;
+    }
+    function onTouchMove(e) {
+      e.preventDefault(); if (!touchActive) return;
+      const t = e.touches[0]; if (touchMode === 'drag') {
+        if (!passedDeadzone && Math.abs(t.clientX - touchStartX) >= DEADZONE_PX) passedDeadzone = true;
+        if (passedDeadzone && !isGrounded) { const dx = t.clientX - touchLastX; player.position.x += dx * DRAG_GAIN; }
+        touchLastX = t.clientX;
+      }
+    }
+    function onTouchEnd(e) {
+      e.preventDefault();
+      if (touchMode === 'charge' && isCharging) {
+        stopChargeSound();
+        if (isGrounded) {
+          velocityY = Math.max(chargeTime, MIN_JUMP);
+          isGrounded = false;
+          playJumpSound();
+        }
+        chargeTime = 0; isCharging = false; chargeDirection = 1;
+        chargeFill.style.width = '0%';
+      }
+      touchActive = false; touchMode = null;
     }
     renderer.domElement.addEventListener('touchstart', onTouchStart, passiveFalse);
-    renderer.domElement.addEventListener('touchmove',  onTouchMove,  passiveFalse);
-    renderer.domElement.addEventListener('touchend',   onTouchEnd,   passiveFalse);
-    renderer.domElement.addEventListener('touchcancel',onTouchEnd,   passiveFalse);
+    renderer.domElement.addEventListener('touchmove', onTouchMove, passiveFalse);
+    renderer.domElement.addEventListener('touchend', onTouchEnd, passiveFalse);
+    renderer.domElement.addEventListener('touchcancel', onTouchEnd, passiveFalse);
 
     // ─────────────────────────────────────
     // Platforms
     // ─────────────────────────────────────
     const platforms = [];
-    function createPlatform(x, y, type='normal') {
-      let width, color, special=null;
+    function createPlatform(x, y, type = 'normal') {
+      let width, color, special = null;
       switch (type) {
-        case 'start':  width=10;  color=0x888888; break;
-        case 'narrow': width=1.2; color=0xff4444; break;
-        case 'bounce': width=3;   color=0x4444ff; special='bounce'; break;
-        case 'vanish': width=3;   color=0xffff00; special='vanish'; break;
-        default:       width=3;   color=0x00aa00;
+        case 'start': width = 10; color = 0x888888; break;
+        case 'narrow': width = 1.2; color = 0xff4444; break;
+        case 'bounce': width = 3; color = 0x4444ff; special = 'bounce'; break;
+        case 'vanish': width = 3; color = 0xffff00; special = 'vanish'; break;
+        default: width = 3; color = 0x00aa00;
       }
-      const mat = new THREE.MeshBasicMaterial({ color, transparent:false, opacity:1 });
-      const mesh= new THREE.Mesh(new THREE.BoxGeometry(width,0.5,1), mat);
-      mesh.position.set(x,y,0);
+      const mat = new THREE.MeshBasicMaterial({ color, transparent: false, opacity: 1 });
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, 0.5, 1), mat);
+      mesh.position.set(x, y, 0);
 
       const label = document.createElement('span');
       label.className = 'platform-label';
       platformLabelsContainer.appendChild(label);
 
       mesh.userData = {
-        type, special, originalX:x,
-        amplitude: type==='start'?0:2+Math.random(),
-        speed:     type==='start'?0:1+Math.random(),
-        phase: Math.random()*Math.PI*2,
-        prevX:x, deltaX:0, label, vanishStarted:false, falling:false
+        type, special, originalX: x,
+        amplitude: type === 'start' ? 0 : 2 + Math.random(),
+        speed: type === 'start' ? 0 : 1 + Math.random(),
+        phase: Math.random() * Math.PI * 2,
+        prevX: x, deltaX: 0, label, vanishStarted: false, falling: false
       };
       scene.add(mesh); platforms.push(mesh);
     }
 
     // Initial platforms
     createPlatform(0, -2, 'start');
-    for (let i=0;i<10;i++){
-      const type = PLATFORM_TYPE_POOL[Math.floor(Math.random()*PLATFORM_TYPE_POOL.length)];
-      createPlatform((Math.random()-0.5)*5, i*3, type);
+    for (let i = 0; i < 10; i++) {
+      const type = PLATFORM_TYPE_POOL[Math.floor(Math.random() * PLATFORM_TYPE_POOL.length)];
+      createPlatform((Math.random() - 0.5) * 5, i * 3, type);
     }
 
     // Death plate
@@ -364,7 +506,7 @@
 
       platforms.forEach(p => {
         p.userData.prevX = p.position.x;
-        if (p.userData.type!=='start' && !p.userData.falling) {
+        if (p.userData.type !== 'start' && !p.userData.falling) {
           const dx = p.userData.amplitude * Math.sin(elapsed * p.userData.speed + p.userData.phase);
           p.position.x = p.userData.originalX + dx;
         }
@@ -380,19 +522,20 @@
         if (label && label.style.display !== 'none') {
           const pos = p.position.clone().project(camera);
           label.style.left = `${(pos.x + 1) / 2 * window.innerWidth}px`;
-          label.style.top  = `${(-pos.y + 1) / 2 * window.innerHeight}px`;
+          label.style.top = `${(-pos.y + 1) / 2 * window.innerHeight}px`;
         }
       });
 
       if (isCharging && isGrounded) {
         chargeTime += chargeDirection * delta * chargeSpeed;
-        if (chargeTime >= maxCharge) { chargeTime=maxCharge; chargeDirection=-1; }
-        else if (chargeTime <= 0)    { chargeTime=0;        chargeDirection= 1; }
+        if (chargeTime >= maxCharge) { chargeTime = maxCharge; chargeDirection = -1; }
+        else if (chargeTime <= 0) { chargeTime = 0; chargeDirection = 1; }
         chargeFill.style.width = `${(chargeTime / maxCharge) * 100}%`;
+        updateChargeSound(chargeTime / maxCharge);
       }
 
       if (!isGrounded) {
-        if (input.left)  player.position.x -= 0.1;
+        if (input.left) player.position.x -= 0.1;
         if (input.right) player.position.x += 0.1;
       }
 
@@ -407,7 +550,7 @@
         const p = platforms[i];
         const w = p.geometry.parameters.width;
         const playerBottomPrev = player.position.y - velocityY - 0.5;
-        const playerBottomNow  = player.position.y - 0.5;
+        const playerBottomNow = player.position.y - 0.5;
         const platformTop = p.position.y + 0.25;
         const withinX = Math.abs(player.position.x - p.position.x) < (w / 2 + 0.5);
         const falling = velocityY <= 0;
@@ -417,7 +560,12 @@
           player.position.y = platformTop + 0.5;
           velocityY = 0; isGrounded = true; onPlatform = p;
 
-          if (p.userData.special === 'bounce') { velocityY = maxCharge; isGrounded = false; }
+          if (p.userData.special === 'bounce') {
+            velocityY = maxCharge; isGrounded = false;
+            playBounceSound();
+          } else {
+            playLandSound();
+          }
 
           if (p.userData.special === 'vanish' && !p.userData.vanishStarted) {
             p.userData.vanishStarted = true;
@@ -444,15 +592,15 @@
 
       while (nextPlatformY < maxY + 30) {
         const type = PLATFORM_TYPE_POOL[Math.floor(Math.random() * PLATFORM_TYPE_POOL.length)];
-        createPlatform((Math.random()-0.5)*5, nextPlatformY, type);
+        createPlatform((Math.random() - 0.5) * 5, nextPlatformY, type);
 
-        const a=0.002, b=2000;
+        const a = 0.002, b = 2000;
         const difficultyScale = 1 / (1 + Math.exp(-a * (maxY - b)));
-        const baseGap=3, maxGap=6;
+        const baseGap = 3, maxGap = 6;
         const gap = baseGap + (maxGap - baseGap) * difficultyScale;
-        const baseJitter=0.2, maxJitter=2.0;
+        const baseJitter = 0.2, maxJitter = 2.0;
         const jitter = baseJitter + (maxJitter - baseJitter) * difficultyScale;
-        nextPlatformY += gap + (Math.random()*2 - 1) * jitter;
+        nextPlatformY += gap + (Math.random() * 2 - 1) * jitter;
       }
 
       deathPlate.position.y += delta * 1.5;
@@ -470,12 +618,13 @@
         finalScoreText.innerText = `Your Score: ${score}`;
         gameOverScreen.style.display = 'block';
 
-        // 최종 점수 캐싱
+        stopChargeSound();
+        playGameOverSound();
+
         finalScoreValue = score;
 
-        // 서버 랭킹 로드
         (async () => {
-          const serverData = await fetchServerLeaderboard(20);
+          const serverData = await fetchServerLeaderboard(10);
           if (!renderServerLeaderboardData(serverData)) {
             leaderboardList.innerHTML = '<li style="color:#ff6666;">서버 연결 실패</li>';
           }
@@ -503,4 +652,5 @@
     animate();
   </script>
 </body>
+
 </html>
