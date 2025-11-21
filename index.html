@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Wave Charged Jump Game (v1.5)</title>
+  <title>Wave Charged Jump Game (v1.6)</title>
   <style>
     html, body { height: 100%; touch-action: none; }
     body { margin: 0; overflow: hidden; }
@@ -42,7 +42,6 @@
   <div id="gameOverScreen">
     <h1>Game Over</h1>
     <p id="finalScoreText"></p>
-    <p id="highScoreText"></p>
 
     <div style="margin-top:12px;">
       <input id="playerNameInput" type="text" maxlength="24"
@@ -52,7 +51,7 @@
         Save Score
       </button>
       <div id="nameHint" style="margin-top:6px;font-size:12px;color:#ffb300;display:none;">
-        이름이 없으면 ‘noname’으로 저장할지 확인합니다.
+        이름이 없으면 'noname'으로 저장할지 확인합니다.
       </div>
     </div>
 
@@ -63,11 +62,6 @@
     <div id="leaderboard" style="margin-top:18px;text-align:left;max-width:360px;margin-left:auto;margin-right:auto;">
       <h2 style="margin:6px 0 8px;">Leaderboard</h2>
       <ol id="leaderboardList" style="padding-left:18px;margin:0;"></ol>
-      <div style="margin-top:10px;">
-        <button id="clearScoresBtn" style="padding:6px 10px;border-radius:6px;border:1px solid #999;background:#222;color:#fff;cursor:pointer;">
-          Clear Local Scores
-        </button>
-      </div>
     </div>
   </div>
 
@@ -106,14 +100,12 @@
     const scoreEl = document.getElementById('score');
     const chargeFill = document.getElementById('chargeFill');
     const finalScoreText = document.getElementById('finalScoreText');
-    const highScoreText = document.getElementById('highScoreText');
     const gameOverScreen = document.getElementById('gameOverScreen');
     const platformLabelsContainer = document.getElementById('platformLabelsContainer');
     const playerNameInput = document.getElementById('playerNameInput');
     const submitScoreBtn  = document.getElementById('submitScoreBtn');
     const playAgainBtn    = document.getElementById('playAgainBtn');
     const leaderboardList = document.getElementById('leaderboardList');
-    const clearScoresBtn  = document.getElementById('clearScoresBtn');
     const nameHint        = document.getElementById('nameHint');
 
     // ─────────────────────────────────────
@@ -122,7 +114,7 @@
     const API_BASE =
       (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
         ? 'http://localhost:8080'
-        : 'https://wave-charged-jump-game.onrender.com'; // ← 배포 서버 시 주소로 교체
+        : 'https://wave-charged-jump-game.onrender.com';
 
     async function postServerScore(name, score) {
       try {
@@ -143,7 +135,7 @@
       try {
         const res = await fetch(`${API_BASE}/api/scores/top?limit=${limit}`, { method: 'GET' });
         if (!res.ok) throw new Error('fetch failed');
-        return await res.json(); // { items:[{rank,name,score,createdAt,id}, ...] }
+        return await res.json();
       } catch (e) {
         console.warn('server leaderboard fetch failed:', e);
         return null;
@@ -155,7 +147,7 @@
       leaderboardList.innerHTML = '';
       data.items.forEach(item => {
         const li = document.createElement('li');
-        li.textContent = `#${item.rank} ${item.name} — ${item.score}`;
+        li.textContent = `${item.name} — ${item.score}`;
         leaderboardList.appendChild(li);
       });
       return true;
@@ -166,7 +158,6 @@
     // ─────────────────────────────────────
     const startTime = Date.now();
     let isInvincible = true;
-    let highScore = parseInt(localStorage.getItem('highScore') || '0', 10);
     let velocityY = 0, isGrounded = false, onPlatform = null;
     let chargeTime = 0, isCharging = false, chargeDirection = 1;
     const maxCharge = 1.0, chargeSpeed = 0.8;
@@ -203,47 +194,10 @@
     });
 
     // ─────────────────────────────────────
-    // Local leaderboard (fallback)
+    // 이름 기억 (localStorage)
     // ─────────────────────────────────────
-    const LB_STORAGE_KEY = 'wcjg_leaderboard_v1';
-    const LAST_NAME_KEY  = 'wcjg_last_name';
+    const LAST_NAME_KEY = 'wcjg_last_name';
 
-    function loadLeaderboard() {
-      try { return JSON.parse(localStorage.getItem(LB_STORAGE_KEY) || '[]'); }
-      catch { return []; }
-    }
-    function saveLeaderboard(entries) {
-      localStorage.setItem(LB_STORAGE_KEY, JSON.stringify(entries));
-    }
-    function recordScore(name, score) {
-      const clean = (name || '').trim() || 'Anonymous';
-      localStorage.setItem(LAST_NAME_KEY, clean);
-      const now = new Date().toISOString();
-      const list = loadLeaderboard();
-
-      const map = new Map();
-      for (const e of list) {
-        const prev = map.get(e.name);
-        if (!prev || e.score > prev.score) map.set(e.name, e);
-        else if (e.score === prev.score && e.date > prev.date) map.set(e.name, e);
-      }
-      const prev = map.get(clean);
-      if (!prev || score > prev.score) map.set(clean, { name: clean, score, date: now });
-      else if (score === prev?.score)   map.set(clean, { name: clean, score, date: now });
-
-      const arr = [...map.values()].sort((a,b) => b.score - a.score || (b.date > a.date ? 1 : -1)).slice(0, 20);
-      saveLeaderboard(arr);
-      return arr;
-    }
-    function renderLeaderboard() {
-      const list = loadLeaderboard().sort((a,b) => b.score - a.score || (b.date > a.date ? 1 : -1));
-      leaderboardList.innerHTML = '';
-      list.forEach(e => {
-        const li = document.createElement('li');
-        li.textContent = `${e.name} — ${e.score}`; // <ol>이 번호 자동 부여
-        leaderboardList.appendChild(li);
-      });
-    }
     (function presetName(){
       const last = localStorage.getItem(LAST_NAME_KEY);
       if (playerNameInput && last) playerNameInput.value = last;
@@ -257,19 +211,10 @@
       }
     }
 
-    function saveCurrentRun(name, score) {
-      if (hasSavedThisGame) return;
-      recordScore(name, score);
-      renderLeaderboard();
-      hasSavedThisGame = true;
-      if (submitScoreBtn) { submitScoreBtn.disabled = true; submitScoreBtn.textContent = 'Saved!'; }
-      enableSaveButtonIfReady();
-    }
-
-    // 이름 입력 변화 → 버튼 활성화만
+    // 이름 입력 변화 → 버튼 활성화
     playerNameInput?.addEventListener('input', enableSaveButtonIfReady);
 
-    // Save 버튼: 이름 없으면 noname 확인 → 로컬 저장 → 서버 저장 → 서버 랭킹 새로고침
+    // Save 버튼: 서버에만 저장
     submitScoreBtn?.addEventListener('click', async () => {
       if (hasSavedThisGame) return;
       let name = (playerNameInput?.value || '').trim();
@@ -281,21 +226,25 @@
         if (playerNameInput) playerNameInput.value = name;
       }
 
-      // 1) 로컬 저장
-      saveCurrentRun(name, finalScoreValue);
+      // 이름 기억
+      localStorage.setItem(LAST_NAME_KEY, name);
 
-      // 2) 서버 저장 (실패해도 흐름 유지)
-      await postServerScore(name, finalScoreValue);
-
-      // 3) 서버 랭킹 로드 시도 (성공 시 서버 랭킹으로 교체, 실패 시 로컬 유지)
-      const serverList = await fetchServerLeaderboard(20);
-      if (!renderServerLeaderboardData(serverList)) {
-        console.log('Server leaderboard unavailable. Showing local leaderboard.');
+      // 서버 저장
+      const result = await postServerScore(name, finalScoreValue);
+      if (result) {
+        hasSavedThisGame = true;
+        if (submitScoreBtn) { submitScoreBtn.disabled = true; submitScoreBtn.textContent = 'Saved!'; }
+        
+        // 서버 랭킹 새로고침
+        const serverList = await fetchServerLeaderboard(20);
+        renderServerLeaderboardData(serverList);
+      } else {
+        alert('서버 저장에 실패했습니다. 다시 시도해주세요.');
       }
     });
 
-    // Play Again: 저장 안 했으면 먼저 물어보기
-    playAgainBtn?.addEventListener('click', () => {
+    // Play Again
+    playAgainBtn?.addEventListener('click', async () => {
       if (!hasSavedThisGame) {
         const wantSave = confirm("현재 점수를 저장하지 않았습니다. 저장하고 새로 시작할까요?");
         if (wantSave) {
@@ -306,14 +255,11 @@
             name = 'noname';
             if (playerNameInput) playerNameInput.value = name;
           }
-          saveCurrentRun(name, finalScoreValue);
+          localStorage.setItem(LAST_NAME_KEY, name);
+          await postServerScore(name, finalScoreValue);
         }
       }
       window.location.reload();
-    });
-
-    clearScoresBtn?.addEventListener('click', () => {
-      if (confirm('Delete all local scores?')) { saveLeaderboard([]); renderLeaderboard(); }
     });
 
     // ─────────────────────────────────────
@@ -506,19 +452,17 @@
 
       if (fellTooLow || hitDeathPlate) {
         const score = Math.floor(maxY);
-        if (score > highScore) { highScore = score; localStorage.setItem('highScore', String(highScore)); }
         finalScoreText.innerText = `Your Score: ${score}`;
-        highScoreText.innerText = `High Score: ${highScore}`;
         gameOverScreen.style.display = 'block';
 
         // 최종 점수 캐싱
         finalScoreValue = score;
 
-        // 서버 랭킹 먼저 시도 → 실패 시 로컬로 폴백
+        // 서버 랭킹 로드
         (async () => {
           const serverData = await fetchServerLeaderboard(20);
           if (!renderServerLeaderboardData(serverData)) {
-            renderLeaderboard();
+            leaderboardList.innerHTML = '<li>서버 연결 실패</li>';
           }
         })();
 
