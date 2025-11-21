@@ -211,10 +211,39 @@
       }
     }
 
+    // ─────────────────────────────────────
+    // 서버 저장 함수
+    // ─────────────────────────────────────
+    async function saveToServer(name, score) {
+      if (hasSavedThisGame) return true;
+
+      // 이름 기억
+      localStorage.setItem(LAST_NAME_KEY, name);
+
+      // 서버 저장
+      const result = await postServerScore(name, score);
+      if (!result) {
+        alert('서버 저장에 실패했습니다. 다시 시도해주세요.');
+        return false;
+      }
+
+      hasSavedThisGame = true;
+      if (submitScoreBtn) {
+        submitScoreBtn.disabled = true;
+        submitScoreBtn.textContent = 'Saved!';
+      }
+
+      // 서버 랭킹 새로고침
+      const serverList = await fetchServerLeaderboard(20);
+      renderServerLeaderboardData(serverList);
+
+      return true;
+    }
+
     // 이름 입력 변화 → 버튼 활성화
     playerNameInput?.addEventListener('input', enableSaveButtonIfReady);
 
-    // Save 버튼: 서버에만 저장
+    // Save 버튼: 서버에 저장
     submitScoreBtn?.addEventListener('click', async () => {
       if (hasSavedThisGame) return;
       let name = (playerNameInput?.value || '').trim();
@@ -226,24 +255,10 @@
         if (playerNameInput) playerNameInput.value = name;
       }
 
-      // 이름 기억
-      localStorage.setItem(LAST_NAME_KEY, name);
-
-      // 서버 저장
-      const result = await postServerScore(name, finalScoreValue);
-      if (result) {
-        hasSavedThisGame = true;
-        if (submitScoreBtn) { submitScoreBtn.disabled = true; submitScoreBtn.textContent = 'Saved!'; }
-        
-        // 서버 랭킹 새로고침
-        const serverList = await fetchServerLeaderboard(20);
-        renderServerLeaderboardData(serverList);
-      } else {
-        alert('서버 저장에 실패했습니다. 다시 시도해주세요.');
-      }
+      await saveToServer(name, finalScoreValue);
     });
 
-    // Play Again
+    // Play Again: 저장 안 했으면 먼저 물어보기
     playAgainBtn?.addEventListener('click', async () => {
       if (!hasSavedThisGame) {
         const wantSave = confirm("현재 점수를 저장하지 않았습니다. 저장하고 새로 시작할까요?");
@@ -255,8 +270,8 @@
             name = 'noname';
             if (playerNameInput) playerNameInput.value = name;
           }
-          localStorage.setItem(LAST_NAME_KEY, name);
-          await postServerScore(name, finalScoreValue);
+          const saved = await saveToServer(name, finalScoreValue);
+          if (!saved) return; // 저장 실패하면 새로고침 안 함
         }
       }
       window.location.reload();
@@ -462,11 +477,11 @@
         (async () => {
           const serverData = await fetchServerLeaderboard(20);
           if (!renderServerLeaderboardData(serverData)) {
-            leaderboardList.innerHTML = '<li>서버 연결 실패</li>';
+            leaderboardList.innerHTML = '<li style="color:#ff6666;">서버 연결 실패</li>';
           }
         })();
 
-        (playerNameInput) && setTimeout(() => playerNameInput.focus(), 0);
+        playerNameInput && setTimeout(() => playerNameInput.focus(), 0);
         enableSaveButtonIfReady();
 
         cancelAnimationFrame(animationId);
