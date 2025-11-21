@@ -19,23 +19,23 @@ public class ScoreService {
     if (score<0) score=0;
     if (score>100000) score=100000;
 
-    // 같은 이름 찾기
+    // Find existing score by name
     Optional<Score> existing = repo.findByName(name);
-    
+
     if (existing.isPresent()) {
       Score old = existing.get();
       if (score > old.getScore()) {
-        // 새 점수가 더 높으면 업데이트
+        // New score is higher - update
         old.setScore(score);
         old.setCreatedAt(Instant.now());
         return repo.save(old);
       } else {
-        // 기존 점수가 같거나 더 높으면 그대로 반환
+        // Existing score is same or higher - return as is
         return old;
       }
     }
-    
-    // 새 이름이면 새로 저장
+
+    // New name - create new record
     return repo.save(new Score(name, score));
   }
 

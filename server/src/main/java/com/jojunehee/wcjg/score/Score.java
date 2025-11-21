@@ -1,5 +1,4 @@
 package com.jojunehee.wcjg.score;
-
 import jakarta.persistence.*;
 import java.time.Instant;
 
@@ -19,6 +18,8 @@ public class Score {
   public String getName(){ return name; }
   public int getScore(){ return score; }
   public Instant getCreatedAt(){ return createdAt; }
+
   public void setName(String n){ this.name=n; }
   public void setScore(int s){ this.score=s; }
+  public void setCreatedAt(Instant t){ this.createdAt=t; }
 }
