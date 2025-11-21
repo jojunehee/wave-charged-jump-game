@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8" />
-  <title>Wave Charged Jump Game (v1.8)</title>
+  <title>Wave Charged Jump Game (v2.0)</title>
   <style>
     html,
     body {
@@ -92,7 +92,6 @@
     <div id="chargeFill"></div>
   </div>
 
-  <!-- Game Over + Leaderboard UI -->
   <div id="gameOverScreen">
     <h1>Game Over</h1>
     <p id="finalScoreText"></p>
@@ -132,7 +131,6 @@
     const synth = new Tone.Synth().toDestination();
     const membraneSynth = new Tone.MembraneSynth().toDestination();
     
-    // 충전 사운드용 오실레이터
     let chargeOsc = null;
 
     async function startAudio() {
@@ -144,7 +142,7 @@
 
     function startChargeSound() {
       if (!audioStarted) return;
-      if (chargeOsc) return; // 이미 재생 중이면 무시
+      if (chargeOsc) return;
       chargeOsc = new Tone.Oscillator({
         frequency: 200,
         type: "sine",
@@ -155,7 +153,7 @@
 
     function updateChargeSound(chargeRatio) {
       if (chargeOsc) {
-        chargeOsc.frequency.value = 200 + chargeRatio * 600; // 200Hz ~ 800Hz
+        chargeOsc.frequency.value = 200 + chargeRatio * 600;
       }
     }
 
@@ -182,6 +180,17 @@
       synth.triggerAttackRelease("G5", "0.1");
     }
 
+    function playSuperBounceSound() {
+      if (!audioStarted) return;
+      synth.triggerAttackRelease("B5", "0.15");
+      setTimeout(() => synth.triggerAttackRelease("E6", "0.1"), 50);
+    }
+
+    function playCrumbleSound() {
+      if (!audioStarted) return;
+      membraneSynth.triggerAttackRelease("C2", "0.2");
+    }
+
     function playGameOverSound() {
       if (!audioStarted) return;
       synth.triggerAttackRelease("C3", "0.3");
@@ -193,7 +202,22 @@
       setTimeout(() => synth.triggerAttackRelease("G5", "0.1"), 100);
     }
 
-    const PLATFORM_TYPE_POOL = ['normal', 'normal', 'normal', 'normal', 'normal', 'narrow', 'narrow', 'narrow', 'bounce', 'bounce', 'vanish'];
+    // ─────────────────────────────────────
+    // 배경 설정
+    // ─────────────────────────────────────
+    const SKY_NIGHT_HEIGHT = 800;
+    const STARS_START_HEIGHT = 400;
+    const BLACKHOLE_START_HEIGHT = 1500;
+    const CLOUDS_FADE_HEIGHT = SKY_NIGHT_HEIGHT / 2; // 구름이 사라지는 높이 (400)
+
+    const PLATFORM_TYPE_POOL = [
+      'normal', 'normal', 'normal', 'normal', 'normal',
+      'narrow', 'narrow', 'narrow',
+      'bounce', 'bounce',
+      'vanish',
+      'crumble', 'crumble',
+      'superBounce'
+    ];
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xd0f0ff);
@@ -218,6 +242,251 @@
     let animationId;
 
     // ─────────────────────────────────────
+    // 별 생성
+    // ─────────────────────────────────────
+    const starsGeometry = new THREE.BufferGeometry();
+    const starCount = 500;
+    const starPositions = new Float32Array(starCount * 3);
+    
+    for (let i = 0; i < starCount; i++) {
+      starPositions[i * 3] = (Math.random() - 0.5) * 100;
+      starPositions[i * 3 + 1] = Math.random() * 500 + 50;
+      starPositions[i * 3 + 2] = -20 - Math.random() * 30;
+    }
+    
+    starsGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+    const starsMaterial = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.5,
+      transparent: true,
+      opacity: 0
+    });
+    const stars = new THREE.Points(starsGeometry, starsMaterial);
+    scene.add(stars);
+
+    // ─────────────────────────────────────
+    // 구름 생성
+    // ─────────────────────────────────────
+    const cloudsGroup = new THREE.Group();
+    const cloudMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.7
+    });
+
+    // 여러 개의 구름 생성
+    const clouds = [];
+    for (let i = 0; i < 15; i++) {
+      const cloud = new THREE.Group();
+      
+      // 각 구름은 여러 개의 구체로 구성
+      const puffCount = 4 + Math.floor(Math.random() * 4);
+      for (let j = 0; j < puffCount; j++) {
+        const puffSize = 1.5 + Math.random() * 2;
+        const puff = new THREE.Mesh(
+          new THREE.SphereGeometry(puffSize, 16, 16),
+          cloudMaterial.clone()
+        );
+        puff.position.x = (j - puffCount / 2) * 1.5 + (Math.random() - 0.5);
+        puff.position.y = (Math.random() - 0.5) * 1;
+        puff.position.z = (Math.random() - 0.5) * 1;
+        puff.scale.y = 0.6; // 납작하게
+        cloud.add(puff);
+      }
+      
+      // 구름 위치 설정
+      cloud.position.x = (Math.random() - 0.5) * 60;
+      cloud.position.y = i * 30 + Math.random() * 20;
+      cloud.position.z = -15 - Math.random() * 20;
+      cloud.userData = {
+        baseY: cloud.position.y,
+        driftSpeed: 0.3 + Math.random() * 0.5,
+        driftPhase: Math.random() * Math.PI * 2
+      };
+      
+      clouds.push(cloud);
+      cloudsGroup.add(cloud);
+    }
+    scene.add(cloudsGroup);
+
+    // ─────────────────────────────────────
+    // 블랙홀 생성 (인터스텔라 스타일)
+    // ─────────────────────────────────────
+    const blackholeGroup = new THREE.Group();
+
+    // 블랙홀 중심 (완전한 검은 원)
+    const blackholeCore = new THREE.Mesh(
+      new THREE.CircleGeometry(5, 64),
+      new THREE.MeshBasicMaterial({ color: 0x000000 })
+    );
+    blackholeGroup.add(blackholeCore);
+
+    // 이벤트 호라이즌 (빛나는 테두리)
+    const eventHorizonGeometry = new THREE.RingGeometry(4.8, 5.5, 64);
+    const eventHorizonMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffd700,
+      transparent: true,
+      opacity: 0.9,
+      side: THREE.DoubleSide
+    });
+    const eventHorizon = new THREE.Mesh(eventHorizonGeometry, eventHorizonMaterial);
+    blackholeGroup.add(eventHorizon);
+
+    // 강착 원반 (Accretion Disk) - 여러 층
+    const diskColors = [0xff4500, 0xff6600, 0xff8c00, 0xffa500, 0xffd700];
+    const diskLayers = [];
+
+    for (let i = 0; i < 5; i++) {
+      const innerRadius = 6 + i * 2;
+      const outerRadius = 8 + i * 2;
+      const diskGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 64);
+      const diskMaterial = new THREE.MeshBasicMaterial({
+        color: diskColors[i],
+        transparent: true,
+        opacity: 0.6 - i * 0.1,
+        side: THREE.DoubleSide
+      });
+      const disk = new THREE.Mesh(diskGeometry, diskMaterial);
+      disk.rotation.x = Math.PI * 0.3;
+      diskLayers.push({ mesh: disk, speed: 0.01 + i * 0.005 });
+      blackholeGroup.add(disk);
+    }
+
+    // 광자 구체 (Photon Sphere)
+    const photonSphereGeometry = new THREE.RingGeometry(5.5, 6, 64);
+    const photonSphereMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.3,
+      side: THREE.DoubleSide
+    });
+    const photonSphere = new THREE.Mesh(photonSphereGeometry, photonSphereMaterial);
+    blackholeGroup.add(photonSphere);
+
+    // 외곽 글로우
+    const glowLayers = [];
+    for (let i = 0; i < 3; i++) {
+      const glowGeometry = new THREE.RingGeometry(16 + i * 3, 18 + i * 3, 64);
+      const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff6600,
+        transparent: true,
+        opacity: 0.15 - i * 0.04,
+        side: THREE.DoubleSide
+      });
+      const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+      glowLayers.push(glow);
+      blackholeGroup.add(glow);
+    }
+
+    // 빨려들어가는 파티클
+    const particleCount = 100;
+    const particleGeometry = new THREE.BufferGeometry();
+    const particlePositions = new Float32Array(particleCount * 3);
+    const particleAngles = new Float32Array(particleCount);
+    const particleRadii = new Float32Array(particleCount);
+
+    for (let i = 0; i < particleCount; i++) {
+      particleAngles[i] = Math.random() * Math.PI * 2;
+      particleRadii[i] = 8 + Math.random() * 15;
+      particlePositions[i * 3] = Math.cos(particleAngles[i]) * particleRadii[i];
+      particlePositions[i * 3 + 1] = Math.sin(particleAngles[i]) * particleRadii[i];
+      particlePositions[i * 3 + 2] = (Math.random() - 0.5) * 5;
+    }
+
+    particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+    const particleMaterial = new THREE.PointsMaterial({
+      color: 0xffaa00,
+      size: 0.3,
+      transparent: true,
+      opacity: 0.8
+    });
+    const blackholeParticles = new THREE.Points(particleGeometry, particleMaterial);
+    blackholeGroup.add(blackholeParticles);
+
+    blackholeGroup.position.set(0, 200, -50);
+    blackholeGroup.visible = false;
+    scene.add(blackholeGroup);
+
+    // ─────────────────────────────────────
+    // 배경 업데이트 함수
+    // ─────────────────────────────────────
+    function updateBackground(height, elapsed) {
+      // 1. 배경색 변화 (하늘색 → 밤하늘)
+      const t = Math.min(Math.max(height / SKY_NIGHT_HEIGHT, 0), 1);
+      const r = Math.floor(208 * (1 - t));
+      const g = Math.floor(240 * (1 - t));
+      const b = Math.floor(255 - t * 200);
+      scene.background = new THREE.Color(`rgb(${r},${g},${b})`);
+      
+      // 2. 별 나타나기
+      if (height > STARS_START_HEIGHT) {
+        const starOpacity = Math.min((height - STARS_START_HEIGHT) / 50, 1);
+        starsMaterial.opacity = starOpacity;
+        stars.position.y = camera.position.y - 100;
+      } else {
+        starsMaterial.opacity = 0;
+      }
+      
+      // 2.5. 구름 업데이트
+      const cloudOpacity = Math.max(0, 1 - (height / CLOUDS_FADE_HEIGHT));
+      clouds.forEach(cloud => {
+        // 구름 투명도 조절
+        cloud.children.forEach(puff => {
+          puff.material.opacity = 0.7 * cloudOpacity;
+        });
+        
+        // 구름이 카메라를 따라 올라가면서 약간 흔들림
+        cloud.position.y = cloud.userData.baseY + camera.position.y * 0.3;
+        cloud.position.x += Math.sin(clock.getElapsedTime() * cloud.userData.driftSpeed + cloud.userData.driftPhase) * 0.01;
+      });
+      
+      // 구름 그룹 표시/숨김
+      cloudsGroup.visible = cloudOpacity > 0;
+      
+      // 3. 블랙홀 나타나기 + 애니메이션
+      if (height > BLACKHOLE_START_HEIGHT) {
+        blackholeGroup.visible = true;
+        const bhOpacity = Math.min((height - BLACKHOLE_START_HEIGHT) / 50, 1);
+        
+        // 이벤트 호라이즌 펄스
+        eventHorizonMaterial.opacity = (0.7 + Math.sin(elapsed * 3) * 0.2) * bhOpacity;
+        
+        // 강착 원반 회전 (각 층마다 다른 속도)
+        diskLayers.forEach((layer, i) => {
+          layer.mesh.rotation.z += layer.speed;
+          layer.mesh.material.opacity = (0.6 - i * 0.1) * bhOpacity;
+        });
+        
+        // 광자 구체 반짝임
+        photonSphereMaterial.opacity = (0.2 + Math.sin(elapsed * 5) * 0.1) * bhOpacity;
+        
+        // 글로우 업데이트
+        glowLayers.forEach((glow, i) => {
+          glow.material.opacity = (0.15 - i * 0.04) * bhOpacity;
+        });
+        
+        // 파티클 빨려들어가는 애니메이션
+        const positions = blackholeParticles.geometry.attributes.position.array;
+        for (let i = 0; i < particleCount; i++) {
+          particleAngles[i] += 0.02 + (20 - particleRadii[i]) * 0.002;
+          particleRadii[i] -= 0.05;
+          if (particleRadii[i] < 5) {
+            particleRadii[i] = 8 + Math.random() * 15;
+          }
+          positions[i * 3] = Math.cos(particleAngles[i]) * particleRadii[i];
+          positions[i * 3 + 1] = Math.sin(particleAngles[i]) * particleRadii[i];
+        }
+        blackholeParticles.geometry.attributes.position.needsUpdate = true;
+        particleMaterial.opacity = 0.8 * bhOpacity;
+        
+        blackholeGroup.position.y = camera.position.y + 10;
+        blackholeGroup.rotation.z += 0.002;
+      } else {
+        blackholeGroup.visible = false;
+      }
+    }
+
+    // ─────────────────────────────────────
     // UI
     // ─────────────────────────────────────
     const scoreEl = document.getElementById('score');
@@ -232,14 +501,13 @@
     const nameHint = document.getElementById('nameHint');
 
     // ─────────────────────────────────────
-    // 서버 API 연결 (로컬/배포 자동 분기)
+    // 서버 API 연결
     // ─────────────────────────────────────
     const API_BASE =
       (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
         ? 'http://localhost:8080'
         : 'https://wave-charged-jump-game.onrender.com';
 
-    // 서버 깨우기 (10분마다 ping)
     setInterval(async () => {
       try {
         await fetch(`${API_BASE}/api/scores/top?limit=1`);
@@ -294,7 +562,6 @@
     let touchActive = false, touchMode = null, touchStartX = 0, touchLastX = 0, passedDeadzone = false;
     const DRAG_GAIN = 0.01, DEADZONE_PX = 8, MIN_JUMP = 0.2;
 
-    // 저장 흐름 상태 / 최종 점수 캐시
     let hasSavedThisGame = false;
     let finalScoreValue = 0;
 
@@ -340,9 +607,6 @@
       }
     }
 
-    // ─────────────────────────────────────
-    // 서버 저장 함수
-    // ─────────────────────────────────────
     async function saveToServer(name, score) {
       if (hasSavedThisGame) return true;
 
@@ -366,10 +630,8 @@
       return true;
     }
 
-    // 이름 입력 변화 → 버튼 활성화
     playerNameInput?.addEventListener('input', enableSaveButtonIfReady);
 
-    // Save 버튼: 서버에 저장
     submitScoreBtn?.addEventListener('click', async () => {
       if (hasSavedThisGame) return;
       let name = (playerNameInput?.value || '').trim();
@@ -384,7 +646,6 @@
       await saveToServer(name, finalScoreValue);
     });
 
-    // Play Again: 저장 안 했으면 먼저 물어보기
     playAgainBtn?.addEventListener('click', async () => {
       if (!hasSavedThisGame) {
         const wantSave = confirm("현재 점수를 저장하지 않았습니다. 저장하고 새로 시작할까요?");
@@ -457,17 +718,112 @@
         case 'narrow': width = 1.2; color = 0xff4444; break;
         case 'bounce': width = 3; color = 0x4444ff; special = 'bounce'; break;
         case 'vanish': width = 3; color = 0xffff00; special = 'vanish'; break;
+        case 'crumble': width = 3; color = 0xaa8866; special = 'crumble'; break;
+        case 'superBounce': width = 2; color = 0xff00ff; special = 'superBounce'; break;
         default: width = 3; color = 0x00aa00;
       }
       const mat = new THREE.MeshBasicMaterial({ color, transparent: false, opacity: 1 });
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, 0.5, 1), mat);
       mesh.position.set(x, y, 0);
 
+      // Crumble 발판: 금간 선 추가
+      if (type === 'crumble') {
+        const crackMaterial = new THREE.LineBasicMaterial({ color: 0x332211, linewidth: 2 });
+        const cracks = [
+          [[-1.2, 0.26, 0.4], [-0.3, 0.26, -0.3]],
+          [[-0.4, 0.26, 0.35], [0.5, 0.26, -0.25]],
+          [[0.3, 0.26, 0.4], [1.1, 0.26, -0.2]],
+          [[-0.8, 0.26, -0.1], [0.2, 0.26, 0.2]],
+          [[0, 0.26, -0.35], [0.7, 0.26, 0.15]],
+          [[-1.0, 0.26, 0.1], [-0.5, 0.26, -0.4]],
+          [[0.6, 0.26, -0.1], [1.2, 0.26, 0.3]]
+        ];
+        cracks.forEach(([start, end]) => {
+          const points = [new THREE.Vector3(...start), new THREE.Vector3(...end)];
+          const crackGeom = new THREE.BufferGeometry().setFromPoints(points);
+          const crackLine = new THREE.Line(crackGeom, crackMaterial);
+          mesh.add(crackLine);
+        });
+      }
+
+      // Bounce 발판: 약한 글로우 효과 추가
+      if (type === 'bounce') {
+        // 약한 내부 글로우
+        const bounceGlow = new THREE.Mesh(
+          new THREE.RingGeometry(1.0, 1.5, 32),
+          new THREE.MeshBasicMaterial({
+            color: 0x6666ff,
+            transparent: true,
+            opacity: 0.3,
+            side: THREE.DoubleSide
+          })
+        );
+        bounceGlow.rotation.x = -Math.PI / 2;
+        bounceGlow.position.y = 0.28;
+        mesh.add(bounceGlow);
+        mesh.userData.bounceGlow = bounceGlow;
+      }
+
+      // SuperBounce 발판: 빛나는 글로우 링 추가
+      if (type === 'superBounce') {
+        // 내부 글로우
+        const innerGlow = new THREE.Mesh(
+          new THREE.RingGeometry(0.8, 1.2, 32),
+          new THREE.MeshBasicMaterial({
+            color: 0xff00ff,
+            transparent: true,
+            opacity: 0.6,
+            side: THREE.DoubleSide
+          })
+        );
+        innerGlow.rotation.x = -Math.PI / 2;
+        innerGlow.position.y = 0.3;
+        mesh.add(innerGlow);
+        mesh.userData.innerGlow = innerGlow;
+
+        // 외부 글로우
+        const outerGlow = new THREE.Mesh(
+          new THREE.RingGeometry(1.3, 1.8, 32),
+          new THREE.MeshBasicMaterial({
+            color: 0xff66ff,
+            transparent: true,
+            opacity: 0.3,
+            side: THREE.DoubleSide
+          })
+        );
+        outerGlow.rotation.x = -Math.PI / 2;
+        outerGlow.position.y = 0.35;
+        mesh.add(outerGlow);
+        mesh.userData.outerGlow = outerGlow;
+
+        // 파티클 효과 (작은 빛 점들)
+        const sparkleGeom = new THREE.BufferGeometry();
+        const sparkleCount = 8;
+        const sparklePositions = new Float32Array(sparkleCount * 3);
+        for (let i = 0; i < sparkleCount; i++) {
+          const angle = (i / sparkleCount) * Math.PI * 2;
+          sparklePositions[i * 3] = Math.cos(angle) * 0.9;
+          sparklePositions[i * 3 + 1] = 0.4;
+          sparklePositions[i * 3 + 2] = Math.sin(angle) * 0.9;
+        }
+        sparkleGeom.setAttribute('position', new THREE.BufferAttribute(sparklePositions, 3));
+        const sparkleMat = new THREE.PointsMaterial({
+          color: 0xffffff,
+          size: 0.15,
+          transparent: true,
+          opacity: 0.8
+        });
+        const sparkles = new THREE.Points(sparkleGeom, sparkleMat);
+        mesh.add(sparkles);
+        mesh.userData.sparkles = sparkles;
+      }
+
       const label = document.createElement('span');
       label.className = 'platform-label';
       platformLabelsContainer.appendChild(label);
 
       mesh.userData = {
+        ...mesh.userData,
         type, special, originalX: x,
         amplitude: type === 'start' ? 0 : 2 + Math.random(),
         speed: type === 'start' ? 0 : 1 + Math.random(),
@@ -477,14 +833,15 @@
       scene.add(mesh); platforms.push(mesh);
     }
 
-    // Initial platforms
     createPlatform(0, -2, 'start');
     for (let i = 0; i < 10; i++) {
       const type = PLATFORM_TYPE_POOL[Math.floor(Math.random() * PLATFORM_TYPE_POOL.length)];
       createPlatform((Math.random() - 0.5) * 5, i * 3, type);
     }
 
-    // Death plate
+    // ─────────────────────────────────────
+    // Death plate (붉은 글로우 추가)
+    // ─────────────────────────────────────
     const deathPlate = new THREE.Mesh(
       new THREE.BoxGeometry(400, 0.5, 2),
       new THREE.MeshBasicMaterial({ color: 0x000000 })
@@ -492,7 +849,64 @@
     deathPlate.position.set(0, -10, 0);
     scene.add(deathPlate);
 
-    // Score/camera
+    // 붉은 글로우 레이어 1 (강한 빛)
+    const deathGlow1 = new THREE.Mesh(
+      new THREE.BoxGeometry(400, 0.1, 3),
+      new THREE.MeshBasicMaterial({
+        color: 0xff0000,
+        transparent: true,
+        opacity: 0.6
+      })
+    );
+    deathGlow1.position.y = 0.3;
+    deathPlate.add(deathGlow1);
+
+    // 붉은 글로우 레이어 2 (중간 빛)
+    const deathGlow2 = new THREE.Mesh(
+      new THREE.BoxGeometry(400, 0.05, 5),
+      new THREE.MeshBasicMaterial({
+        color: 0xff3300,
+        transparent: true,
+        opacity: 0.4
+      })
+    );
+    deathGlow2.position.y = 0.5;
+    deathPlate.add(deathGlow2);
+
+    // 붉은 글로우 레이어 3 (약한 빛, 넓은 범위)
+    const deathGlow3 = new THREE.Mesh(
+      new THREE.BoxGeometry(400, 0.03, 8),
+      new THREE.MeshBasicMaterial({
+        color: 0xff2200,
+        transparent: true,
+        opacity: 0.2
+      })
+    );
+    deathGlow3.position.y = 0.7;
+    deathPlate.add(deathGlow3);
+
+    // 파티클 효과 (떠오르는 불꽃)
+    const fireParticleCount = 50;
+    const fireParticleGeom = new THREE.BufferGeometry();
+    const fireParticlePositions = new Float32Array(fireParticleCount * 3);
+    const fireParticleVelocities = new Float32Array(fireParticleCount);
+
+    for (let i = 0; i < fireParticleCount; i++) {
+      fireParticlePositions[i * 3] = (Math.random() - 0.5) * 20;
+      fireParticlePositions[i * 3 + 1] = Math.random() * 2;
+      fireParticlePositions[i * 3 + 2] = (Math.random() - 0.5) * 2;
+      fireParticleVelocities[i] = 0.5 + Math.random() * 1.5;
+    }
+    fireParticleGeom.setAttribute('position', new THREE.BufferAttribute(fireParticlePositions, 3));
+    const fireParticleMat = new THREE.PointsMaterial({
+      color: 0xff4400,
+      size: 0.3,
+      transparent: true,
+      opacity: 0.7
+    });
+    const fireParticles = new THREE.Points(fireParticleGeom, fireParticleMat);
+    deathPlate.add(fireParticles);
+
     let maxY = 0;
     let nextPlatformY = 30;
 
@@ -503,6 +917,26 @@
       const elapsed = clock.getElapsedTime();
 
       if (Date.now() - startTime > 3000) isInvincible = false;
+
+      // 배경 업데이트
+      updateBackground(maxY, elapsed);
+
+      // Death plate 글로우 애니메이션
+      deathGlow1.material.opacity = 0.4 + Math.sin(elapsed * 4) * 0.3;
+      deathGlow2.material.opacity = 0.25 + Math.sin(elapsed * 3 + 1) * 0.2;
+      deathGlow3.material.opacity = 0.15 + Math.sin(elapsed * 2.5 + 2) * 0.1;
+
+      // 불꽃 파티클 애니메이션
+      const firePositions = fireParticles.geometry.attributes.position.array;
+      for (let i = 0; i < fireParticleCount; i++) {
+        firePositions[i * 3 + 1] += fireParticleVelocities[i] * delta;
+        if (firePositions[i * 3 + 1] > 3) {
+          firePositions[i * 3 + 1] = 0;
+          firePositions[i * 3] = (Math.random() - 0.5) * 20;
+        }
+      }
+      fireParticles.geometry.attributes.position.needsUpdate = true;
+      fireParticleMat.opacity = 0.5 + Math.sin(elapsed * 6) * 0.3;
 
       platforms.forEach(p => {
         p.userData.prevX = p.position.x;
@@ -516,6 +950,27 @@
           p.position.y -= delta * 50;
           p.material.opacity = Math.max(0, p.material.opacity - delta * 1);
           p.material.transparent = true;
+        }
+
+        // SuperBounce 글로우 애니메이션
+        if (p.userData.innerGlow) {
+          p.userData.innerGlow.material.opacity = 0.4 + Math.sin(elapsed * 5) * 0.3;
+          p.userData.innerGlow.rotation.z = elapsed * 2;
+        }
+        if (p.userData.outerGlow) {
+          p.userData.outerGlow.material.opacity = 0.2 + Math.sin(elapsed * 3 + 1) * 0.15;
+          p.userData.outerGlow.scale.setScalar(1 + Math.sin(elapsed * 4) * 0.1);
+          p.userData.outerGlow.rotation.z = -elapsed * 1.5;
+        }
+        if (p.userData.sparkles) {
+          p.userData.sparkles.material.opacity = 0.5 + Math.sin(elapsed * 8) * 0.4;
+          p.userData.sparkles.rotation.y = elapsed * 3;
+        }
+
+        // Bounce 글로우 애니메이션 (약하게)
+        if (p.userData.bounceGlow) {
+          p.userData.bounceGlow.material.opacity = 0.2 + Math.sin(elapsed * 3) * 0.15;
+          p.userData.bounceGlow.scale.setScalar(1 + Math.sin(elapsed * 2) * 0.05);
         }
 
         const label = p.userData.label;
@@ -561,8 +1016,19 @@
           velocityY = 0; isGrounded = true; onPlatform = p;
 
           if (p.userData.special === 'bounce') {
-            velocityY = maxCharge; isGrounded = false;
+            velocityY = maxCharge;
+            isGrounded = false;
             playBounceSound();
+          } else if (p.userData.special === 'superBounce') {
+            velocityY = maxCharge * 2;
+            isGrounded = false;
+            playSuperBounceSound();
+          } else if (p.userData.special === 'crumble') {
+            playLandSound();
+            playCrumbleSound();
+            // 즉시 부서짐 시작
+            p.userData.falling = true;
+            p.material.transparent = true;
           } else {
             playLandSound();
           }
