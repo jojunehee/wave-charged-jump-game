@@ -1,3 +1,7 @@
 package com.jojunehee.wcjg.score;
 import org.springframework.data.jpa.repository.JpaRepository;
-public interface ScoreRepository extends JpaRepository<Score, Long> {}
+import java.util.Optional;
+
+public interface ScoreRepository extends JpaRepository<Score, Long> {
+  Optional<Score> findByName(String name);
+}
