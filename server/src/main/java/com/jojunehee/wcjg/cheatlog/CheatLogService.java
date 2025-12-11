@@ -1,16 +1,22 @@
 package com.jojunehee.wcjg.cheatlog;
 
+import com.jojunehee.wcjg.score.Score;
+import com.jojunehee.wcjg.score.ScoreRepository;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
+import java.util.stream.Collectors;
+import java.time.Instant;
 
 @Service
 public class CheatLogService {
     private final CheatLogRepository repo;
+    private final ScoreRepository scoreRepo;
 
-    public CheatLogService(CheatLogRepository repo) {
+    public CheatLogService(CheatLogRepository repo, ScoreRepository scoreRepo) {
         this.repo = repo;
+        this.scoreRepo = scoreRepo;
     }
 
     @Transactional
@@ -65,5 +71,28 @@ public class CheatLogService {
         int size = (limit <= 0) ? 50 : Math.min(limit, 200);
         Pageable p = PageRequest.of(0, size, Sort.by(Sort.Order.desc("createdAt")));
         return repo.findAll(p).getContent();
+    }
+    
+    @Transactional(readOnly = true)
+    public Set<String> getCheaterNames() {
+        return repo.findAll().stream()
+            .map(CheatLog::getPlayerName)
+            .collect(Collectors.toSet());
+    }
+    
+    @Transactional(readOnly = true)
+    public List<Score> getScoresInPeriod(int limit, Instant from, Instant to) {
+        int size = (limit <= 0) ? 50 : Math.min(limit, 200);
+        Pageable p = PageRequest.of(0, size, Sort.by(Sort.Order.desc("score"), Sort.Order.desc("createdAt")));
+        
+        if (from != null && to != null) {
+            return scoreRepo.findByCreatedAtBetween(from, to, p);
+        } else if (from != null) {
+            return scoreRepo.findByCreatedAtAfter(from, p);
+        } else if (to != null) {
+            return scoreRepo.findByCreatedAtBefore(to, p);
+        } else {
+            return scoreRepo.findAll(p).getContent();
+        }
     }
 }

@@ -1,8 +1,12 @@
 package com.jojunehee.wcjg.cheatlog;
 
+import com.jojunehee.wcjg.score.ScoreService;
+import com.jojunehee.wcjg.score.Score;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import java.util.*;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
 
 @RestController
 @RequestMapping("/api/cheat-logs")
@@ -13,14 +17,16 @@ import java.util.*;
 })
 public class CheatLogController {
     private final CheatLogService svc;
+    private final ScoreService scoreService;
     
     // 관리자 비밀 키 (환경변수로 설정 가능)
     private static final String ADMIN_KEY = System.getenv("ADMIN_KEY") != null 
         ? System.getenv("ADMIN_KEY") 
         : "wcjg-admin-2025";
 
-    public CheatLogController(CheatLogService svc) {
+    public CheatLogController(CheatLogService svc, ScoreService scoreService) {
         this.svc = svc;
+        this.scoreService = scoreService;
     }
 
     @PostMapping
@@ -108,6 +114,62 @@ public class CheatLogController {
         
         return ResponseEntity.ok(Map.of(
             "count", items.size(),
+            "items", items
+        ));
+    }
+    
+    // 리더보드 + 치트 의심자 표시 API
+    @GetMapping("/admin/leaderboard")
+    public ResponseEntity<?> getLeaderboardWithCheatCheck(
+            @RequestParam String key,
+            @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to
+    ) {
+        // 관리자 키 확인
+        if (!ADMIN_KEY.equals(key)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("error", "Invalid admin key"));
+        }
+        
+        // 기간 파싱
+        Instant fromInstant = null;
+        Instant toInstant = null;
+        
+        try {
+            if (from != null && !from.isEmpty()) {
+                fromInstant = LocalDate.parse(from).atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
+            }
+            if (to != null && !to.isEmpty()) {
+                toInstant = LocalDate.parse(to).atTime(23, 59, 59).atZone(ZoneId.of("Asia/Seoul")).toInstant();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid date format. Use YYYY-MM-DD"));
+        }
+        
+        // 점수 리스트 가져오기 (기간 필터 적용)
+        List<Score> scores = svc.getScoresInPeriod(limit, fromInstant, toInstant);
+        
+        // 치트 로그에서 플레이어 이름 목록 가져오기
+        Set<String> cheaters = svc.getCheaterNames();
+        
+        List<Map<String, Object>> items = new ArrayList<>();
+        int rank = 1;
+        
+        for (Score score : scores) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("rank", rank++);
+            item.put("id", score.getId());
+            item.put("name", score.getName());
+            item.put("score", score.getScore());
+            item.put("created_at", score.getCreatedAt().toString());
+            item.put("is_cheater", cheaters.contains(score.getName()));
+            items.add(item);
+        }
+        
+        return ResponseEntity.ok(Map.of(
+            "count", items.size(),
+            "cheater_count", items.stream().filter(i -> (Boolean) i.get("is_cheater")).count(),
             "items", items
         ));
     }
