@@ -3,7 +3,10 @@
 
 <head>
   <meta charset="UTF-8" />
-  <title>Wave Charged Jump Game (v2.0)</title>
+  <title>Jump Up to the Sky</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Audiowide&display=swap" rel="stylesheet">
   <style>
     html,
     body {
@@ -14,6 +17,7 @@
     body {
       margin: 0;
       overflow: hidden;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
 
     canvas {
@@ -30,6 +34,27 @@
       border-radius: 8px;
       z-index: 10;
       user-select: none;
+      display: none;
+    }
+
+    #pauseBtn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-size: 24px;
+      background: rgba(255, 255, 255, 0.7);
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      z-index: 100;
+      user-select: none;
+      line-height: 1;
+      display: none;
+    }
+
+    #pauseBtn:hover {
+      background: rgba(255, 255, 255, 0.9);
     }
 
     #chargeBar {
@@ -38,32 +63,471 @@
       left: 50%;
       transform: translateX(-50%);
       width: min(80vw, 800px);
-      height: 20px;
-      background: #ddd;
-      border-radius: 10px;
+      height: 24px;
+      background: #333;
+      border-radius: 12px;
       overflow: hidden;
       z-index: 11;
+      border: 4px solid #222;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+      display: none;
     }
 
     #chargeFill {
       height: 100%;
-      background: red;
+      background: linear-gradient(to right, #ffff00, #ff0000);
       width: 0%;
+      transition: width 0.05s linear;
     }
 
+    /* 타이틀 화면 */
+    #titleScreen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding-top: 40px;
+      box-sizing: border-box;
+      z-index: 100;
+      color: white;
+      text-shadow: 0 0 10px rgba(255, 150, 0, 0.4);
+      user-select: none;
+      pointer-events: none;
+    }
+
+    #titleScreen button {
+      pointer-events: auto;
+    }
+
+    #gameTitle {
+      font-family: 'Audiowide', cursive;
+      font-size: min(10vw, 72px);
+      font-weight: normal;
+      margin-bottom: 40px;
+      letter-spacing: 4px;
+      text-align: center;
+      width: 100%;
+      padding: 0 10px;
+      box-sizing: border-box;
+      animation: float 3s ease-in-out infinite, glow 2s ease-in-out infinite alternate;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    @keyframes glow {
+      from { text-shadow: 0 0 10px rgba(255, 150, 0, 0.4); }
+      to { text-shadow: 0 0 15px rgba(255, 180, 80, 0.5); }
+    }
+
+    #startBtn {
+      font-family: 'Audiowide', cursive;
+      font-size: 24px;
+      padding: 15px 40px;
+      background: #ff6600;
+      border: none;
+      border-radius: 30px;
+      color: white;
+      cursor: pointer;
+      margin-bottom: 20px;
+      animation: pulse 1.5s ease-in-out infinite;
+      box-shadow: 0 0 20px rgba(255, 150, 0, 0.5), 0 0 40px rgba(255, 100, 0, 0.3);
+      text-shadow: 0 0 5px rgba(255, 255, 0, 0.4);
+    }
+
+    #infiniteModeBtn {
+      font-family: 'Audiowide', cursive;
+      font-size: 20px;
+      padding: 12px 35px;
+      background: #9900ff;
+      border: none;
+      border-radius: 30px;
+      color: white;
+      cursor: pointer;
+      margin-bottom: 20px;
+      box-shadow: 0 0 20px rgba(150, 0, 255, 0.5), 0 0 40px rgba(100, 0, 255, 0.3);
+      text-shadow: 0 0 5px rgba(200, 150, 255, 0.4);
+    }
+
+    #infiniteModeBtn:hover {
+      background: #aa22ff;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.05); opacity: 0.9; }
+    }
+
+    @keyframes rainbow {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    #startBtn:hover {
+      background: #ff7722;
+    }
+
+    #controlsBtn, #leaderboardTitleBtn {
+      font-size: 16px;
+      padding: 10px 20px;
+      width: 200px;
+      background: rgba(255, 255, 255, 0.15);
+      border: 2px solid rgba(255, 255, 255, 0.4);
+      border-radius: 20px;
+      color: white;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+
+    #controlsBtn:hover, #leaderboardTitleBtn:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    #leaderboardTitleBtn {
+      margin-bottom: 40px;
+    }
+
+    #titleFooter {
+      position: absolute;
+      bottom: 20px;
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    /* 조작법 화면 */
+    #controlsScreen {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      padding: 30px 40px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      z-index: 110;
+      display: none;
+      max-width: 400px;
+      text-align: left;
+    }
+
+    #controlsScreen h2 {
+      text-align: center;
+      margin-top: 0;
+      margin-bottom: 20px;
+      color: #ff9944;
+    }
+
+    #controlsScreen h3 {
+      color: #88bbff;
+      margin: 15px 0 8px;
+    }
+
+    #controlsScreen ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    #controlsScreen li {
+      margin: 6px 0;
+    }
+
+    #closeControlsBtn {
+      display: block;
+      margin: 20px auto 0;
+      padding: 10px 30px;
+      font-size: 14px;
+      background: #ff6600;
+      border: none;
+      border-radius: 20px;
+      color: white;
+      cursor: pointer;
+    }
+
+    /* 리더보드 화면 (타이틀에서) */
+    #leaderboardScreen {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      padding: 30px 40px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      z-index: 110;
+      display: none;
+      min-width: 340px;
+      max-width: 400px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    #leaderboardScreen h2 {
+      text-align: center;
+      margin-top: 0;
+      margin-bottom: 20px;
+      color: #ffd700;
+    }
+
+    #leaderboardScreenContent {
+      margin-bottom: 15px;
+    }
+
+    #leaderboardScreenContent ul {
+      padding-left: 0;
+      margin: 0;
+      list-style: none;
+    }
+
+    #closeLeaderboardBtn {
+      display: block;
+      margin: 20px auto 0;
+      padding: 10px 30px;
+      font-size: 14px;
+      background: #ff6600;
+      border: none;
+      border-radius: 20px;
+      color: white;
+      cursor: pointer;
+    }
+
+    /* 카운트다운 */
+    #countdown {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: 'Audiowide', cursive;
+      font-size: min(30vw, 200px);
+      font-weight: bold;
+      color: white;
+      text-shadow: 0 0 15px rgba(255, 150, 0, 0.5);
+      z-index: 90;
+      display: none;
+      animation: countPulse 1s ease-out;
+    }
+
+    @keyframes countPulse {
+      0% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+      50% { opacity: 1; }
+      100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    }
+
+    /* Ready 화면 */
+    #readyScreen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 85;
+      background: rgba(0, 0, 0, 0.3);
+    }
+
+    #readyText {
+      font-family: 'Audiowide', cursive;
+      font-size: min(5vw, 32px);
+      color: white;
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
+      animation: pulse 1.2s ease-in-out infinite;
+      text-align: center;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* 일시정지 화면 */
+    #pauseScreen {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      padding: 40px 60px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      z-index: 80;
+      display: none;
+      text-align: center;
+    }
+
+    #pauseScreen h1 {
+      margin-top: 0;
+      color: #ff9944;
+      font-size: 28px;
+    }
+
+    #pauseScreen p {
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 25px;
+    }
+
+    #resumeBtn, #restartBtn, #quitBtn {
+      font-size: 14px;
+      padding: 12px 30px;
+      margin: 8px;
+      border: none;
+      border-radius: 25px;
+      cursor: pointer;
+    }
+
+    #resumeBtn {
+      background: #ff6600;
+      color: white;
+      text-shadow: 0 0 5px rgba(255, 255, 0, 0.4);
+    }
+
+    #restartBtn {
+      background: #4CAF50;
+      color: white;
+    }
+
+    #quitBtn {
+      background: rgba(255, 255, 255, 0.15);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      color: white;
+    }
+
+    #quitBtn:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    /* 게임오버 화면 */
     #gameOverScreen {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      background: rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.9);
       color: white;
-      padding: 30px;
-      border-radius: 12px;
+      padding: 30px 40px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
       display: none;
       text-align: center;
-      z-index: 20;
+      z-index: 70;
       min-width: 320px;
+    }
+
+    /* 게임 클리어 화면 */
+    #gameClearScreen {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.95);
+      color: white;
+      padding: 40px 50px;
+      border-radius: 20px;
+      border: 2px solid rgba(255, 215, 0, 0.5);
+      display: none;
+      text-align: center;
+      z-index: 80;
+      min-width: 350px;
+      box-shadow: 0 0 60px rgba(255, 215, 0, 0.3);
+    }
+
+    #gameClearScreen h1 {
+      color: #ffd700;
+      margin-top: 0;
+      font-size: 36px;
+      text-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+    }
+
+    #gameClearScreen p {
+      font-size: 18px;
+      margin: 15px 0;
+      color: #ffffcc;
+    }
+
+    #gameClearScreen input[type="text"] {
+      font-size: 16px;
+      padding: 10px 15px;
+      border: 2px solid rgba(255, 215, 0, 0.5);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      text-align: center;
+      width: 200px;
+      margin: 10px 0;
+    }
+
+    #gameClearScreen button {
+      font-size: 14px;
+      padding: 12px 25px;
+      margin: 8px 5px;
+      border: none;
+      border-radius: 25px;
+      cursor: pointer;
+      color: white;
+      background: #ffd700;
+    }
+
+    #gameOverScreen h1 {
+      color: #ff9944;
+      margin-top: 0;
+      font-size: 28px;
+    }
+
+    #gameOverScreen p {
+      font-size: 18px;
+      margin: 15px 0;
+    }
+
+    #gameOverScreen input[type="text"] {
+      font-size: 16px;
+      padding: 10px 15px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      text-align: center;
+      width: 200px;
+      margin: 10px 0;
+    }
+
+    #gameOverScreen input[type="text"]::placeholder {
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    #gameOverScreen button {
+      font-size: 14px;
+      padding: 12px 25px;
+      margin: 8px 5px;
+      border: none;
+      border-radius: 25px;
+      cursor: pointer;
+      color: white;
+    }
+
+    #saveScoreBtn {
+      background: #ff6600;
+    }
+
+    #playAgainBtn {
+      background: #ff6600;
+      text-shadow: 0 0 5px rgba(255, 255, 0, 0.4);
+    }
+
+    #leaderboardBtn {
+      background: rgba(255, 255, 255, 0.15);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+    }
+
+    #leaderboardBtn:hover {
+      background: rgba(255, 255, 255, 0.25);
     }
 
     #platformLabelsContainer {
@@ -87,13 +551,87 @@
 </head>
 
 <body>
+  <!-- 타이틀 화면 -->
+  <div id="titleScreen">
+    <div id="gameTitle">JUMP UP TO THE SKY</div>
+    <button id="startBtn">▶ TAP TO START</button>
+    <button id="infiniteModeBtn" style="display:none;">♾️ INFINITE MODE</button>
+    <button id="controlsBtn">🎮 How To Play</button>
+    <button id="leaderboardTitleBtn">🏆 Leaderboard</button>
+    <div id="titleFooter">v3.6 &nbsp;&nbsp;|&nbsp;&nbsp; © 2025 조준희</div>
+    <button id="devToggleBtn" style="position:absolute; bottom:10px; right:10px; font-size:10px; padding:5px 8px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.3); color:rgba(255,255,255,0.5); border-radius:5px; cursor:pointer;">DEV: Toggle Unlock</button>
+  </div>
+
+  <!-- 무한모드 해금 팝업 -->
+  <div id="unlockPopup" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:1000; display:none; justify-content:center; align-items:center;">
+    <div style="background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding:40px; border-radius:20px; text-align:center; max-width:400px; margin:20px; border:2px solid rgba(255,215,0,0.5); box-shadow:0 0 30px rgba(255,215,0,0.3);">
+      <div style="font-size:60px; margin-bottom:20px;">🎉</div>
+      <h2 style="color:#ffd700; margin:0 0 15px 0; font-size:24px; text-shadow:0 0 10px rgba(255,215,0,0.5);">무한 모드 해금!</h2>
+      <p style="color:#fff; margin:0 0 20px 0; font-size:16px; line-height:1.6;">
+        축하합니다! 일반 모드를 클리어했습니다!<br><br>
+        <span style="color:#aaf;">♾️ 무한 모드</span>에서는 클리어 판정 없이<br>
+        끝없이 올라가며 점수를 쌓을 수 있습니다!
+      </p>
+      <button id="closeUnlockBtn" style="background:linear-gradient(135deg, #ffd700, #ff8c00); color:#000; border:none; padding:12px 40px; border-radius:25px; font-size:16px; font-weight:bold; cursor:pointer;">확인</button>
+    </div>
+  </div>
+
+  <!-- 조작법 화면 -->
+  <div id="controlsScreen">
+    <h2>🎮 조작법</h2>
+    <h3>💻 PC</h3>
+    <ul>
+      <li><strong>SPACE 꾹 누르기</strong>: 점프 충전</li>
+      <li><strong>SPACE 떼기</strong>: 점프!</li>
+      <li><strong>A/D</strong> 또는 <strong>←/→</strong>: 공중 이동</li>
+      <li><strong>ESC</strong>: 일시정지</li>
+    </ul>
+    <h3>📱 모바일</h3>
+    <ul>
+      <li><strong>화면 꾹 누르기</strong>: 점프 충전</li>
+      <li><strong>손 떼기</strong>: 점프!</li>
+      <li><strong>공중에서 드래그</strong>: 좌우 이동</li>
+      <li><strong>⏸ 버튼</strong>: 일시정지</li>
+    </ul>
+    <button id="closeControlsBtn">닫기</button>
+  </div>
+
+  <!-- 리더보드 화면 (타이틀에서) -->
+  <div id="leaderboardScreen">
+    <h2>🏆 Leaderboard</h2>
+    <div id="leaderboardScreenContent">
+      <p style="color:rgba(255,255,255,0.5);">불러오는 중...</p>
+    </div>
+    <button id="closeLeaderboardBtn">닫기</button>
+  </div>
+
+  <!-- 카운트다운 -->
+  <div id="countdown"></div>
+
+  <!-- Ready 화면 (재시작용) -->
+  <div id="readyScreen">
+    <div id="readyText">Press SPACE or Touch the Screen<br>to Start</div>
+  </div>
+
+  <!-- 게임 UI -->
   <div id="score">Score: 0</div>
+  <button id="pauseBtn">⏸</button>
   <div id="chargeBar">
     <div id="chargeFill"></div>
   </div>
 
+  <!-- 일시정지 화면 -->
+  <div id="pauseScreen">
+    <h1>⏸ 일시정지</h1>
+    <p>ESC 또는 버튼을 눌러 계속하기</p>
+    <button id="resumeBtn">▶ 계속하기</button>
+    <button id="restartBtn">🔄 다시하기</button>
+    <button id="quitBtn">🏠 타이틀 화면으로</button>
+  </div>
+
+  <!-- 게임오버 화면 -->
   <div id="gameOverScreen">
-    <h1>Game Over</h1>
+    <h1 id="gameOverTitle">Game Over</h1>
     <p id="finalScoreText"></p>
 
     <div style="margin-top:12px;">
@@ -113,8 +651,28 @@
     </div>
 
     <div id="leaderboard" style="margin-top:18px;text-align:left;max-width:360px;margin-left:auto;margin-right:auto;">
-      <h2 style="margin:6px 0 8px;">Leaderboard</h2>
-      <ol id="leaderboardList" style="padding-left:18px;margin:0;"></ol>
+      <h2 style="margin:6px 0 8px;">🏆 Leaderboard</h2>
+      <ul id="leaderboardList" style="padding-left:0;margin:0;list-style:none;"></ul>
+    </div>
+  </div>
+
+  <!-- 게임 클리어 화면 -->
+  <div id="gameClearScreen">
+    <h1>🎉 GAME CLEAR! 🎉</h1>
+    <p id="clearMessage">You reached the event horizon!</p>
+    <p id="clearScoreText"></p>
+    
+    <div style="margin-top:12px;">
+      <input id="clearPlayerNameInput" type="text" maxlength="24" placeholder="Your name"
+        style="padding:8px;border-radius:6px;border:1px solid #ccc;width:220px;">
+      <button id="clearSubmitScoreBtn" disabled
+        style="padding:8px 12px;border-radius:6px;border:0;background:#4CAF50;color:#fff;cursor:pointer;opacity:0.6;">
+        Save Score
+      </button>
+    </div>
+
+    <div style="margin-top:10px;">
+      <button id="clearToTitleBtn">🏠 타이틀 화면으로</button>
     </div>
   </div>
 
@@ -129,15 +687,182 @@
     // ─────────────────────────────────────
     let audioStarted = false;
     const synth = new Tone.Synth().toDestination();
+    const jumpSynth = new Tone.Synth().toDestination();
+    jumpSynth.volume.value = -12;
+    const buttonSynth = new Tone.Synth().toDestination();
+    buttonSynth.volume.value = -5;
     const membraneSynth = new Tone.MembraneSynth().toDestination();
+    const noiseSynth = new Tone.NoiseSynth({
+      noise: { type: 'brown' },
+      envelope: { attack: 0.005, decay: 0.1, sustain: 0, release: 0.1 }
+    }).toDestination();
     
     let chargeOsc = null;
+    let blackholeDrone = null;
 
     async function startAudio() {
       if (!audioStarted) {
         await Tone.start();
         audioStarted = true;
       }
+    }
+    
+    function startBlackholeDrone() {
+      if (!audioStarted || blackholeDrone) return;
+      
+      // 레이어 1: 낮은 웅~ (부드러운 저음) - 작게 시작해서 페이드인
+      const drone = new Tone.Oscillator({
+        frequency: 55,
+        type: "sine",
+        volume: -60
+      }).toDestination();
+      
+      // 레이어 2: 휘이이 (고역 필터 노이즈)
+      const wind = new Tone.Noise({
+        type: "pink",
+        volume: -60
+      });
+      
+      const filter = new Tone.Filter({
+        frequency: 800,
+        type: "lowpass",
+        Q: 1
+      }).toDestination();
+      
+      // 천천히 출렁이는 LFO
+      const lfo = new Tone.LFO({
+        frequency: 0.08,
+        min: 400,
+        max: 1000
+      }).connect(filter.frequency);
+      
+      wind.connect(filter);
+      
+      blackholeDrone = { drone, wind, filter, lfo };
+      
+      lfo.start();
+      drone.start();
+      wind.start();
+      
+      // 페이드인 (1.5초에 걸쳐 부드럽게)
+      drone.volume.rampTo(-20, 1.5);
+      wind.volume.rampTo(-25, 1.5);
+    }
+    
+    function updateBlackholeDroneVolume(progress) {
+      // progress: 0 (등장) ~ 1 (클리어 직전)
+      if (!blackholeDrone) return;
+      
+      const { drone, wind } = blackholeDrone;
+      // -30dB ~ -15dB (작게 시작해서 점점 커짐)
+      const droneVol = -30 + progress * 15;
+      const windVol = -35 + progress * 15;
+      
+      drone.volume.rampTo(droneVol, 0.3);
+      wind.volume.rampTo(windVol, 0.3);
+    }
+    
+    function stopBlackholeDrone() {
+      if (blackholeDrone) {
+        const { drone, wind, filter, lfo } = blackholeDrone;
+        
+        // 페이드아웃 (2초에 걸쳐 부드럽게)
+        drone.volume.rampTo(-60, 2);
+        wind.volume.rampTo(-60, 2);
+        
+        setTimeout(() => {
+          lfo.stop();
+          lfo.dispose();
+          filter.dispose();
+          drone.stop();
+          drone.dispose();
+          wind.stop();
+          wind.dispose();
+          blackholeDrone = null;
+        }, 2000);
+      }
+    }
+    
+    // 클리어 시 펄스 + 수축 효과음
+    function playClearPulseSound() {
+      if (!audioStarted) return;
+      
+      // 홥홥 펄스 사운드
+      const pulseSynth = new Tone.MembraneSynth({
+        pitchDecay: 0.05,
+        octaves: 4,
+        oscillator: { type: "sine" },
+        envelope: { attack: 0.01, decay: 0.3, sustain: 0, release: 0.3 }
+      }).toDestination();
+      pulseSynth.volume.value = -8;
+      
+      // 3번 펄스
+      pulseSynth.triggerAttackRelease("C1", "8n", Tone.now());
+      pulseSynth.triggerAttackRelease("C1", "8n", Tone.now() + 0.5);
+      pulseSynth.triggerAttackRelease("C1", "8n", Tone.now() + 1.0);
+      
+      setTimeout(() => pulseSynth.dispose(), 2000);
+    }
+    
+    function playClearCollapseSound() {
+      if (!audioStarted) return;
+      
+      // 파바밧!!! 폭발
+      const impactSynth = new Tone.MembraneSynth({
+        pitchDecay: 0.1,
+        octaves: 6,
+        envelope: { attack: 0.001, decay: 0.5, sustain: 0, release: 0.5 }
+      }).toDestination();
+      impactSynth.volume.value = -4;
+      impactSynth.triggerAttackRelease("G0", "4n");
+      
+      // 슈유육 빨려드는 소리 (피치 다운)
+      const swoosh = new Tone.Oscillator({
+        frequency: 800,
+        type: "sawtooth",
+        volume: -12
+      }).toDestination();
+      
+      swoosh.start();
+      swoosh.frequency.rampTo(50, 0.4);
+      swoosh.volume.rampTo(-40, 0.5);
+      
+      setTimeout(() => {
+        swoosh.stop();
+        swoosh.dispose();
+        impactSynth.dispose();
+      }, 1000);
+    }
+
+    // 블랙홀 재생성 효과음
+    function playBlackholeExplodeSound() {
+      if (!audioStarted) return;
+      
+      // 거대한 폭발음
+      const boom = new Tone.MembraneSynth({
+        pitchDecay: 0.3,
+        octaves: 8,
+        envelope: { attack: 0.001, decay: 1.5, sustain: 0, release: 1 }
+      }).toDestination();
+      boom.volume.value = 0;
+      boom.triggerAttackRelease("C0", "2n");
+      
+      // 우우우웅 잔향
+      const rumble = new Tone.Oscillator({
+        frequency: 30,
+        type: "sawtooth",
+        volume: -8
+      }).toDestination();
+      
+      rumble.start();
+      rumble.frequency.rampTo(60, 0.5);
+      rumble.volume.rampTo(-30, 1.5);
+      
+      setTimeout(() => {
+        rumble.stop();
+        rumble.dispose();
+        boom.dispose();
+      }, 2000);
     }
 
     function startChargeSound() {
@@ -153,7 +878,7 @@
 
     function updateChargeSound(chargeRatio) {
       if (chargeOsc) {
-        chargeOsc.frequency.value = 200 + chargeRatio * 600;
+        chargeOsc.frequency.rampTo(200 + chargeRatio * 600, 0.05);
       }
     }
 
@@ -167,12 +892,7 @@
 
     function playJumpSound() {
       if (!audioStarted) return;
-      synth.triggerAttackRelease("E6", "0.05");
-    }
-
-    function playLandSound() {
-      if (!audioStarted) return;
-      synth.triggerAttackRelease("G3", "0.03");
+      jumpSynth.triggerAttackRelease("E6", "0.05");
     }
 
     function playBounceSound() {
@@ -191,9 +911,28 @@
       membraneSynth.triggerAttackRelease("C2", "0.2");
     }
 
+    // 새로운 균열 사운드 - "쩍!" 느낌
+    function playCrackSound() {
+      if (!audioStarted) return;
+      // 날카로운 크랙 사운드
+      noiseSynth.triggerAttackRelease("16n");
+      // 낮은 쿵 소리 추가
+      membraneSynth.triggerAttackRelease("G1", "0.1");
+    }
+
     function playGameOverSound() {
       if (!audioStarted) return;
       synth.triggerAttackRelease("C3", "0.3");
+    }
+
+    function playDeadlySound() {
+      if (!audioStarted) return;
+      const scream = new Tone.Oscillator({ frequency: 800, type: "sawtooth", volume: -10 }).toDestination();
+      scream.start();
+      scream.frequency.rampTo(2000, 0.1);
+      scream.frequency.rampTo(200, 0.3);
+      scream.volume.rampTo(-40, 0.4);
+      setTimeout(() => { scream.stop(); scream.dispose(); }, 500);
     }
 
     function playSaveSound() {
@@ -202,25 +941,60 @@
       setTimeout(() => synth.triggerAttackRelease("G5", "0.1"), 100);
     }
 
+    function playCountdownSound() {
+      if (!audioStarted) return;
+      synth.triggerAttackRelease("C5", "0.1");
+    }
+
+    function playStartSound() {
+      if (!audioStarted) return;
+      synth.triggerAttackRelease("G5", "0.15");
+      setTimeout(() => synth.triggerAttackRelease("C6", "0.2"), 100);
+    }
+
+    // ─────────────────────────────────────
+    // 게임 상태
+    // ─────────────────────────────────────
+    let gameState = 'title'; // 'title', 'countdown', 'ready', 'playing', 'paused', 'gameover'
+
     // ─────────────────────────────────────
     // 배경 설정
     // ─────────────────────────────────────
-    const SKY_NIGHT_HEIGHT = 800;
-    const STARS_START_HEIGHT = 400;
-    const BLACKHOLE_START_HEIGHT = 1500;
-    const CLOUDS_FADE_HEIGHT = SKY_NIGHT_HEIGHT / 2; // 구름이 사라지는 높이 (400)
+    const CLEAR_HEIGHT = 100;                    // 클리어 높이 (기준점!)
+    const BLACKHOLE_START_HEIGHT = CLEAR_HEIGHT * 0.6;  // 블랙홀 등장 (1500)
+    const SKY_NIGHT_HEIGHT = CLEAR_HEIGHT * 0.32;       // 밤하늘 전환 (800)
+    const STARS_START_HEIGHT = CLEAR_HEIGHT * 0.16;     // 별 등장 (400)
+    const CLOUDS_FADE_HEIGHT = SKY_NIGHT_HEIGHT / 2;    // 구름 사라짐 (400)
+    const DIFFICULTY_CENTER = CLEAR_HEIGHT * 0.8;       // 난이도 곡선 중심 (2000)
+    const DEATHPLATE_MAX_SPEED_HEIGHT = CLEAR_HEIGHT * 0.8; // 데스플레이트 최대속도 (2000)
+    
+    // 블랙홀 애니메이션 거리 (BLACKHOLE_START_HEIGHT 기준 상대값)
+    const BH_APPROACH_DISTANCE = (CLEAR_HEIGHT - BLACKHOLE_START_HEIGHT) * 0.5; // Z축 접근 (500)
+    const BH_FADEIN_DISTANCE = 150; // 투명도 페이드인 (고정값, 너무 길면 어색)
 
-    const PLATFORM_TYPE_POOL = [
-      'normal', 'normal', 'normal', 'normal', 'normal',
-      'narrow', 'narrow', 'narrow',
-      'bounce', 'bounce',
-      'vanish',
-      'crumble',
-      'superBounce'
-    ];
+    const PLATFORM_WEIGHTS = {
+      normal: 50,
+      narrow: 20,
+      bounce: 15,
+      vanish: 5,
+      crumble: 5,
+      superBounce: 4,
+      deadly: 0.5
+    };
+
+    function getRandomPlatformType() {
+      const total = Object.values(PLATFORM_WEIGHTS).reduce((a, b) => a + b, 0);
+      let rand = Math.random() * total;
+      
+      for (const [type, weight] of Object.entries(PLATFORM_WEIGHTS)) {
+        rand -= weight;
+        if (rand <= 0) return type;
+      }
+      return 'normal';
+    }
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xd0f0ff);
+    scene.background = new THREE.Color(0x0a0515); // 타이틀: 우주색
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 5, 10);
@@ -259,151 +1033,579 @@
       color: 0xffffff,
       size: 0.5,
       transparent: true,
-      opacity: 0
+      opacity: 1 // 타이틀에서는 보임
     });
     const stars = new THREE.Points(starsGeometry, starsMaterial);
     scene.add(stars);
 
     // ─────────────────────────────────────
-    // 구름 생성
+    // 구름 생성 (업그레이드 버전)
     // ─────────────────────────────────────
     const cloudsGroup = new THREE.Group();
-    const cloudMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.7
-    });
 
-    // 여러 개의 구름 생성
     const clouds = [];
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 20; i++) {
       const cloud = new THREE.Group();
       
-      // 각 구름은 여러 개의 구체로 구성
-      const puffCount = 4 + Math.floor(Math.random() * 4);
+      // 구름 타입 랜덤 (길쭉한 것, 뭉툭한 것, 큰 것)
+      const cloudType = Math.random();
+      let puffCount, spreadX, spreadY, baseSize;
+      
+      if (cloudType < 0.3) {
+        // 길쭉한 구름
+        puffCount = 10 + Math.floor(Math.random() * 6);
+        spreadX = 2.0;
+        spreadY = 0.5;
+        baseSize = 1.2;
+      } else if (cloudType < 0.6) {
+        // 뭉게뭉게 큰 구름
+        puffCount = 12 + Math.floor(Math.random() * 8);
+        spreadX = 1.5;
+        spreadY = 1.0;
+        baseSize = 1.8;
+      } else {
+        // 작고 동그란 구름
+        puffCount = 6 + Math.floor(Math.random() * 4);
+        spreadX = 1.2;
+        spreadY = 0.8;
+        baseSize = 1.5;
+      }
+      
+      // 중심부터 가장자리까지 구 배치
       for (let j = 0; j < puffCount; j++) {
-        const puffSize = 1.5 + Math.random() * 2;
+        const angle = (j / puffCount) * Math.PI * 2 + Math.random() * 0.5;
+        const distFromCenter = Math.random() * 0.7; // 0 = 중심, 1 = 가장자리
+        
+        // 중심에 가까울수록 크고 불투명, 가장자리는 작고 투명
+        const sizeMultiplier = 1 - distFromCenter * 0.5;
+        const opacityMultiplier = 1 - distFromCenter * 0.6;
+        
+        const puffSize = baseSize * (0.8 + Math.random() * 0.8) * sizeMultiplier;
+        
+        const puffMaterial = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: (0.5 + Math.random() * 0.3) * opacityMultiplier
+        });
+        
         const puff = new THREE.Mesh(
-          new THREE.SphereGeometry(puffSize, 16, 16),
-          cloudMaterial.clone()
+          new THREE.SphereGeometry(puffSize, 12, 12),
+          puffMaterial
         );
-        puff.position.x = (j - puffCount / 2) * 1.5 + (Math.random() - 0.5);
-        puff.position.y = (Math.random() - 0.5) * 1;
-        puff.position.z = (Math.random() - 0.5) * 1;
-        puff.scale.y = 0.6; // 납작하게
+        
+        // 위치 - 중심 주변으로 퍼지게
+        const radiusX = (puffCount / 4) * spreadX * distFromCenter;
+        const radiusZ = (puffCount / 6) * distFromCenter;
+        
+        puff.position.x = Math.cos(angle) * radiusX + (Math.random() - 0.5) * 1.5;
+        puff.position.y = (Math.random() - 0.5) * spreadY * 2 + Math.sin(j * 0.5) * 0.3;
+        puff.position.z = Math.sin(angle) * radiusZ + (Math.random() - 0.5);
+        
+        // 납작하게 눌러서 구름답게
+        puff.scale.y = 0.4 + Math.random() * 0.3;
+        puff.scale.x = 0.9 + Math.random() * 0.3;
+        
         cloud.add(puff);
       }
       
-      // 구름 위치 설정
-      cloud.position.x = (Math.random() - 0.5) * 60;
-      cloud.position.y = i * 30 + Math.random() * 20;
-      cloud.position.z = -15 - Math.random() * 20;
+      // 구름 위치
+      cloud.position.x = (Math.random() - 0.5) * 50;
+      cloud.position.y = i * 25 + Math.random() * 20;
+      cloud.position.z = -8 - Math.random() * 10;
+      
+      // 구름 전체 스케일 랜덤
+      const cloudScale = 0.8 + Math.random() * 0.6;
+      cloud.scale.setScalar(cloudScale);
+      
       cloud.userData = {
         baseY: cloud.position.y,
-        driftSpeed: 0.3 + Math.random() * 0.5,
+        baseX: cloud.position.x,
+        driftSpeedX: 0.1 + Math.random() * 0.2, // 바람에 흘러가는 속도
+        driftSpeedY: 0.05 + Math.random() * 0.1, // 위아래 살랑살랑
         driftPhase: Math.random() * Math.PI * 2
       };
       
       clouds.push(cloud);
       cloudsGroup.add(cloud);
     }
+    cloudsGroup.visible = false; // 타이틀에서는 숨김
     scene.add(cloudsGroup);
 
     // ─────────────────────────────────────
-    // 블랙홀 생성 (인터스텔라 스타일)
+    // 태양 (Sprite로 왜곡 방지)
     // ─────────────────────────────────────
-    const blackholeGroup = new THREE.Group();
+    const sunGroup = new THREE.Group();
+    
+    // 1. 글로우 레이어 (큰 후광) - 흰색 기반
+    const glowCanvas = document.createElement('canvas');
+    glowCanvas.width = 256;
+    glowCanvas.height = 256;
+    const glowCtx = glowCanvas.getContext('2d');
+    const glowGradient = glowCtx.createRadialGradient(128, 128, 0, 128, 128, 128);
+    glowGradient.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+    glowGradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.3)');
+    glowGradient.addColorStop(0.6, 'rgba(255, 255, 255, 0.1)');
+    glowGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    glowCtx.fillStyle = glowGradient;
+    glowCtx.fillRect(0, 0, 256, 256);
+    
+    const glowTexture = new THREE.CanvasTexture(glowCanvas);
+    const sunGlowMaterial = new THREE.SpriteMaterial({ 
+      map: glowTexture,
+      transparent: true,
+      blending: THREE.NormalBlending
+    });
+    const sunGlow = new THREE.Sprite(sunGlowMaterial);
+    sunGlow.scale.set(50, 50, 1);
+    sunGroup.add(sunGlow);
+    
+    // 2. 본체 - 흰색 기반 (color로 색 입힘)
+    const sunCanvas = document.createElement('canvas');
+    sunCanvas.width = 128;
+    sunCanvas.height = 128;
+    const sunCtx = sunCanvas.getContext('2d');
+    const sunGradient = sunCtx.createRadialGradient(64, 64, 0, 64, 64, 60);
+    sunGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    sunGradient.addColorStop(0.5, 'rgba(255, 255, 255, 1)');
+    sunGradient.addColorStop(0.85, 'rgba(255, 255, 255, 0.9)');
+    sunGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    sunCtx.fillStyle = sunGradient;
+    sunCtx.fillRect(0, 0, 128, 128);
+    
+    const sunTexture = new THREE.CanvasTexture(sunCanvas);
+    const sunMaterial = new THREE.SpriteMaterial({ 
+      map: sunTexture,
+      transparent: true,
+      blending: THREE.NormalBlending
+    });
+    const sun = new THREE.Sprite(sunMaterial);
+    sun.scale.set(20, 20, 1);
+    sunGroup.add(sun);
+    
+    sunGroup.position.set(-60, 30, -60);
+    sunGroup.visible = false;
+    scene.add(sunGroup);
+    
+    // 태양 펄스용 변수
+    let sunBaseScale = 20;
+    
+    // 태양 업데이트 함수
+    function updateSun(playerHeight, elapsed) {
+      // 태양이 보이는 높이 범위: 0 ~ SKY_NIGHT_HEIGHT
+      const sunEndHeight = SKY_NIGHT_HEIGHT;
+      
+      if (playerHeight >= sunEndHeight) {
+        sunGroup.visible = false;
+        return;
+      }
+      
+      sunGroup.visible = true;
+      
+      // progress: 0 (시작) ~ 1 (끝)
+      const progress = Math.min(1, playerHeight / sunEndHeight);
+      
+      // 각도 기반 위치 계산
+      // 시작: 160도, 정오: 90도 (위), 끝: 20도
+      const angle = 160 - progress * 140;
+      const radians = angle * Math.PI / 180;
+      const radius = 140;
+      
+      const sunX = Math.cos(radians) * radius;
+      const sunYOffset = Math.sin(radians) * radius - 135;
+      
+      sunGroup.position.x = sunX;
+      sunGroup.position.y = camera.position.y + sunYOffset;
+      sunGroup.position.z = -60;
+      
+      // 미세한 펄스 (숨쉬듯이)
+      const pulse = 1 + Math.sin(elapsed * 2) * 0.03;
+      sun.scale.set(sunBaseScale * pulse, sunBaseScale * pulse, 1);
+      sunGlow.scale.set(50 * pulse, 50 * pulse, 1);
+      
+      // 색상 변화: 일출(주황) -> 정오(밝은 노랑) -> 일몰(진한 빨강)
+      let r, g, b;
+      if (progress < 0.3) {
+        // 일출: 진한 주황 -> 노랑
+        const p = progress / 0.3;
+        r = 1;
+        g = 0.4 + p * 0.55; // 0.4 -> 0.95
+        b = 0.1 + p * 0.4;  // 0.1 -> 0.5
+      } else if (progress < 0.5) {
+        // 정오: 밝은 노랑
+        r = 1;
+        g = 0.95;
+        b = 0.5;
+      } else {
+        // 일몰: 노랑 -> 진한 빨강/주황
+        const p = (progress - 0.5) / 0.5;
+        r = 1;
+        g = 0.95 - p * 0.75; // 0.95 -> 0.2
+        b = 0.5 - p * 0.5;   // 0.5 -> 0
+      }
+      
+      sunMaterial.color.setRGB(r, g, b);
+      sunGlowMaterial.color.setRGB(r, g * 0.9, b * 0.7);
+    }
 
-    // 블랙홀 중심 (완전한 검은 원)
-    const blackholeCore = new THREE.Mesh(
-      new THREE.CircleGeometry(5, 64),
+    // ─────────────────────────────────────
+    // 달 (밤하늘에 등장)
+    // ─────────────────────────────────────
+    const moonGroup = new THREE.Group();
+    
+    // 1. 달 글로우 (은은한 후광)
+    const moonGlowCanvas = document.createElement('canvas');
+    moonGlowCanvas.width = 256;
+    moonGlowCanvas.height = 256;
+    const moonGlowCtx = moonGlowCanvas.getContext('2d');
+    const moonGlowGradient = moonGlowCtx.createRadialGradient(128, 128, 0, 128, 128, 128);
+    moonGlowGradient.addColorStop(0, 'rgba(200, 220, 255, 0.4)');
+    moonGlowGradient.addColorStop(0.3, 'rgba(180, 200, 255, 0.2)');
+    moonGlowGradient.addColorStop(0.6, 'rgba(150, 180, 255, 0.08)');
+    moonGlowGradient.addColorStop(1, 'rgba(150, 180, 255, 0)');
+    moonGlowCtx.fillStyle = moonGlowGradient;
+    moonGlowCtx.fillRect(0, 0, 256, 256);
+    
+    const moonGlowTexture = new THREE.CanvasTexture(moonGlowCanvas);
+    const moonGlowMaterial = new THREE.SpriteMaterial({ 
+      map: moonGlowTexture,
+      transparent: true,
+      blending: THREE.AdditiveBlending
+    });
+    const moonGlow = new THREE.Sprite(moonGlowMaterial);
+    moonGlow.scale.set(40, 40, 1);
+    moonGroup.add(moonGlow);
+    
+    // 2. 달 본체 (약간 노란빛 도는 흰색)
+    const moonCanvas = document.createElement('canvas');
+    moonCanvas.width = 128;
+    moonCanvas.height = 128;
+    const moonCtx = moonCanvas.getContext('2d');
+    const moonGradient = moonCtx.createRadialGradient(64, 64, 0, 64, 64, 58);
+    moonGradient.addColorStop(0, 'rgba(255, 255, 240, 1)');
+    moonGradient.addColorStop(0.7, 'rgba(240, 240, 220, 1)');
+    moonGradient.addColorStop(0.9, 'rgba(220, 220, 200, 0.9)');
+    moonGradient.addColorStop(1, 'rgba(200, 200, 180, 0)');
+    moonCtx.fillStyle = moonGradient;
+    moonCtx.fillRect(0, 0, 128, 128);
+    
+    const moonTexture = new THREE.CanvasTexture(moonCanvas);
+    const moonMaterial = new THREE.SpriteMaterial({ 
+      map: moonTexture,
+      transparent: true,
+      blending: THREE.NormalBlending
+    });
+    const moon = new THREE.Sprite(moonMaterial);
+    moon.scale.set(15, 15, 1);
+    moonGroup.add(moon);
+    
+    moonGroup.position.set(-60, 30, -60);
+    moonGroup.visible = false;
+    scene.add(moonGroup);
+    
+    // 달 업데이트 함수
+    function updateMoon(playerHeight, elapsed) {
+      // 달이 보이는 높이 범위: SKY_NIGHT_HEIGHT ~ BLACKHOLE_START_HEIGHT
+      const moonStartHeight = SKY_NIGHT_HEIGHT;
+      const moonEndHeight = BLACKHOLE_START_HEIGHT;
+      
+      if (playerHeight < moonStartHeight || playerHeight >= moonEndHeight) {
+        moonGroup.visible = false;
+        return;
+      }
+      
+      moonGroup.visible = true;
+      
+      // progress: 0 (시작) ~ 1 (끝)
+      const progress = (playerHeight - moonStartHeight) / (moonEndHeight - moonStartHeight);
+      
+      // 태양과 같은 궤적
+      const angle = 160 - progress * 140;
+      const radians = angle * Math.PI / 180;
+      const radius = 140;
+      
+      const moonX = Math.cos(radians) * radius;
+      const moonYOffset = Math.sin(radians) * radius - 135;
+      
+      moonGroup.position.x = moonX;
+      moonGroup.position.y = camera.position.y + moonYOffset;
+      moonGroup.position.z = -60;
+      
+      // 미세한 펄스
+      const pulse = 1 + Math.sin(elapsed * 1.5) * 0.02;
+      moon.scale.set(15 * pulse, 15 * pulse, 1);
+      moonGlow.scale.set(40 * pulse, 40 * pulse, 1);
+    }
+
+    // ─────────────────────────────────────
+    // 타이틀용 거대 블랙홀 (인터스텔라 가르강튀아 스타일)
+    // ─────────────────────────────────────
+    const titleBlackholeGroup = new THREE.Group();
+
+    // 1. 검은 중심 (이벤트 호라이즌) - 완전한 어둠의 구체
+    const titleBhCore = new THREE.Mesh(
+      new THREE.SphereGeometry(5, 64, 64),
       new THREE.MeshBasicMaterial({ color: 0x000000 })
     );
-    blackholeGroup.add(blackholeCore);
+    titleBhCore.position.z = -3; // 뒤로 밀어서 아래쪽 안보이게
+    titleBlackholeGroup.add(titleBhCore);
 
-    // 이벤트 호라이즌 (빛나는 테두리)
-    const eventHorizonGeometry = new THREE.RingGeometry(4.8, 5.5, 64);
-    const eventHorizonMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffd700,
-      transparent: true,
-      opacity: 0.9,
-      side: THREE.DoubleSide
-    });
-    const eventHorizon = new THREE.Mesh(eventHorizonGeometry, eventHorizonMaterial);
-    blackholeGroup.add(eventHorizon);
-
-    // 강착 원반 (Accretion Disk) - 여러 층
-    const diskColors = [0xff4500, 0xff6600, 0xff8c00, 0xffa500, 0xffd700];
-    const diskLayers = [];
-
-    for (let i = 0; i < 5; i++) {
-      const innerRadius = 6 + i * 2;
-      const outerRadius = 8 + i * 2;
-      const diskGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 64);
-      const diskMaterial = new THREE.MeshBasicMaterial({
-        color: diskColors[i],
+    // 1.5. 광자구 (Photon Sphere) - 블랙홀 주변 빛의 왜곡
+    const photonSphereGlow = new THREE.Mesh(
+      new THREE.SphereGeometry(5.8, 64, 64),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffee,
         transparent: true,
-        opacity: 0.6 - i * 0.1,
-        side: THREE.DoubleSide
-      });
-      const disk = new THREE.Mesh(diskGeometry, diskMaterial);
-      disk.rotation.x = Math.PI * 0.3;
-      diskLayers.push({ mesh: disk, speed: 0.01 + i * 0.005 });
-      blackholeGroup.add(disk);
-    }
+        opacity: 0.15,
+        side: THREE.BackSide
+      })
+    );
+    titleBlackholeGroup.add(photonSphereGlow);
 
-    // 광자 구체 (Photon Sphere)
-    const photonSphereGeometry = new THREE.RingGeometry(5.5, 6, 64);
-    const photonSphereMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.3,
-      side: THREE.DoubleSide
-    });
-    const photonSphere = new THREE.Mesh(photonSphereGeometry, photonSphereMaterial);
-    blackholeGroup.add(photonSphere);
-
-    // 외곽 글로우
-    const glowLayers = [];
-    for (let i = 0; i < 3; i++) {
-      const glowGeometry = new THREE.RingGeometry(16 + i * 3, 18 + i * 3, 64);
-      const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff6600,
+    // 1.6. 광자구 외곽 글로우
+    const photonSphereOuter = new THREE.Mesh(
+      new THREE.SphereGeometry(6.5, 64, 64),
+      new THREE.MeshBasicMaterial({
+        color: 0xffddaa,
         transparent: true,
-        opacity: 0.15 - i * 0.04,
-        side: THREE.DoubleSide
-      });
-      const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-      glowLayers.push(glow);
-      blackholeGroup.add(glow);
+        opacity: 0.08,
+        side: THREE.BackSide
+      })
+    );
+    titleBlackholeGroup.add(photonSphereOuter);
+
+    // 2. 광자링 (Photon Ring) - 블랙홀 바로 바깥의 날카로운 빛
+    const photonRing = new THREE.Mesh(
+      new THREE.TorusGeometry(5.3, 0.08, 16, 100),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 1
+      })
+    );
+    photonRing.rotation.x = Math.PI * 0.48; // 강착원반과 같은 각도
+    titleBlackholeGroup.add(photonRing);
+
+    // 3. 강착원반 (Accretion Disk) - 평면 Ring, 안쪽 밝고 두껍게 → 바깥쪽 희미하게
+    const accretionDiskGroup = new THREE.Group();
+    
+    const diskLayers = [
+      { inner: 5.8, outer: 7.5, color: 0xffffff, opacity: 0.95 },
+      { inner: 7.5, outer: 10, color: 0xffffcc, opacity: 0.85 },
+      { inner: 10, outer: 13, color: 0xffdd66, opacity: 0.7 },
+      { inner: 13, outer: 16, color: 0xffaa33, opacity: 0.5 },
+      { inner: 16, outer: 20, color: 0xff6600, opacity: 0.3 },
+      { inner: 20, outer: 25, color: 0xff4400, opacity: 0.15 },
+    ];
+    
+    diskLayers.forEach(layer => {
+      const disk = new THREE.Mesh(
+        new THREE.RingGeometry(layer.inner, layer.outer, 128),
+        new THREE.MeshBasicMaterial({
+          color: layer.color,
+          transparent: true,
+          opacity: layer.opacity,
+          side: THREE.DoubleSide
+        })
+      );
+      accretionDiskGroup.add(disk);
+    });
+    
+    // 강착원반 기울이기 (거의 옆에서 보는 각도)
+    accretionDiskGroup.rotation.x = Math.PI * 0.48;
+    titleBlackholeGroup.add(accretionDiskGroup);
+
+    // 6. 외곽 글로우 (희미한 빛)
+    for (let i = 0; i < 2; i++) {
+      const glow = new THREE.Mesh(
+        new THREE.RingGeometry(25 + i * 5, 28 + i * 5, 64),
+        new THREE.MeshBasicMaterial({
+          color: 0xff4400,
+          transparent: true,
+          opacity: 0.08 - i * 0.03,
+          side: THREE.DoubleSide
+        })
+      );
+      glow.rotation.x = Math.PI * 0.48;
+      titleBlackholeGroup.add(glow);
     }
 
-    // 빨려들어가는 파티클
-    const particleCount = 100;
-    const particleGeometry = new THREE.BufferGeometry();
-    const particlePositions = new Float32Array(particleCount * 3);
-    const particleAngles = new Float32Array(particleCount);
-    const particleRadii = new Float32Array(particleCount);
+    // 7. 빨려들어가는 파티클 (강착원반 평면 위)
+    const titleParticleCount = 200;
+    const titleParticleGeom = new THREE.BufferGeometry();
+    const titleParticlePositions = new Float32Array(titleParticleCount * 3);
+    const titleParticleAngles = new Float32Array(titleParticleCount);
+    const titleParticleRadii = new Float32Array(titleParticleCount);
 
-    for (let i = 0; i < particleCount; i++) {
-      particleAngles[i] = Math.random() * Math.PI * 2;
-      particleRadii[i] = 8 + Math.random() * 15;
-      particlePositions[i * 3] = Math.cos(particleAngles[i]) * particleRadii[i];
-      particlePositions[i * 3 + 1] = Math.sin(particleAngles[i]) * particleRadii[i];
-      particlePositions[i * 3 + 2] = (Math.random() - 0.5) * 5;
+    for (let i = 0; i < titleParticleCount; i++) {
+      titleParticleAngles[i] = Math.random() * Math.PI * 2;
+      titleParticleRadii[i] = 6 + Math.random() * 18;
+      titleParticlePositions[i * 3] = Math.cos(titleParticleAngles[i]) * titleParticleRadii[i];
+      titleParticlePositions[i * 3 + 1] = 0;
+      titleParticlePositions[i * 3 + 2] = Math.sin(titleParticleAngles[i]) * titleParticleRadii[i];
     }
 
-    particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-    const particleMaterial = new THREE.PointsMaterial({
-      color: 0xffaa00,
-      size: 0.3,
+    titleParticleGeom.setAttribute('position', new THREE.BufferAttribute(titleParticlePositions, 3));
+    const titleParticleMat = new THREE.PointsMaterial({
+      color: 0xffdd88,
+      size: 0.2,
       transparent: true,
       opacity: 0.8
     });
-    const blackholeParticles = new THREE.Points(particleGeometry, particleMaterial);
-    blackholeGroup.add(blackholeParticles);
+    const titleBlackholeParticles = new THREE.Points(titleParticleGeom, titleParticleMat);
+    titleBlackholeParticles.rotation.x = Math.PI * 0.48;
+    titleBlackholeGroup.add(titleBlackholeParticles);
 
-    blackholeGroup.position.set(0, 200, -50);
+    // 8. 별빛 왜곡 (블랙홀 주변)
+    const distortedStarsCount = 60;
+    const distortedStarsGeom = new THREE.BufferGeometry();
+    const distortedStarsPositions = new Float32Array(distortedStarsCount * 3);
+    
+    for (let i = 0; i < distortedStarsCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 5.5 + Math.random() * 1.5;
+      distortedStarsPositions[i * 3] = Math.cos(angle) * radius;
+      distortedStarsPositions[i * 3 + 1] = (Math.random() - 0.5) * 3;
+      distortedStarsPositions[i * 3 + 2] = Math.sin(angle) * 0.3;
+    }
+    
+    distortedStarsGeom.setAttribute('position', new THREE.BufferAttribute(distortedStarsPositions, 3));
+    const distortedStarsMat = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.1,
+      transparent: true,
+      opacity: 0.8
+    });
+    const distortedStars = new THREE.Points(distortedStarsGeom, distortedStarsMat);
+    titleBlackholeGroup.add(distortedStars);
+
+    // 위치 및 크기
+    titleBlackholeGroup.position.set(10, 2, -20);
+    titleBlackholeGroup.scale.setScalar(1.0);
+    titleBlackholeGroup.visible = true;
+    scene.add(titleBlackholeGroup);
+
+    // ─────────────────────────────────────
+    // 게임용 블랙홀 (타이틀과 동일한 스타일)
+    // ─────────────────────────────────────
+    const blackholeGroup = new THREE.Group();
+    blackholeGroup.renderOrder = -1; // 발판보다 먼저 렌더링
+
+    // 1. 코어 (검은 구)
+    const gameBhCore = new THREE.Mesh(
+      new THREE.SphereGeometry(5, 64, 64),
+      new THREE.MeshBasicMaterial({ color: 0x000000 })
+    );
+    blackholeGroup.add(gameBhCore);
+
+    // 1-1. 광자구 글로우 (코어 주변)
+    const gamePhotonSphereGlow = new THREE.Mesh(
+      new THREE.SphereGeometry(5.15, 64, 64),
+      new THREE.MeshBasicMaterial({
+        color: 0xffaa44,
+        transparent: true,
+        opacity: 0.15,
+        depthWrite: false
+      })
+    );
+    blackholeGroup.add(gamePhotonSphereGlow);
+
+    // 1-2. 광자구 외곽
+    const gamePhotonSphereOuter = new THREE.Mesh(
+      new THREE.SphereGeometry(5.3, 64, 64),
+      new THREE.MeshBasicMaterial({
+        color: 0xff6600,
+        transparent: true,
+        opacity: 0.08,
+        depthWrite: false
+      })
+    );
+    blackholeGroup.add(gamePhotonSphereOuter);
+
+    // 2. 광자링 (Photon Ring)
+    const gamePhotonRing = new THREE.Mesh(
+      new THREE.TorusGeometry(5.3, 0.08, 16, 100),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 1,
+        depthWrite: false
+      })
+    );
+    gamePhotonRing.rotation.x = Math.PI * 0.48;
+    blackholeGroup.add(gamePhotonRing);
+
+    // 3. 강착원반 (Accretion Disk)
+    const gameAccretionDiskGroup = new THREE.Group();
+    
+    const gameDiskLayers = [
+      { inner: 5.8, outer: 7.5, color: 0xffffff, opacity: 0.95 },
+      { inner: 7.5, outer: 10, color: 0xffffcc, opacity: 0.85 },
+      { inner: 10, outer: 13, color: 0xffdd66, opacity: 0.7 },
+      { inner: 13, outer: 16, color: 0xffaa33, opacity: 0.5 },
+      { inner: 16, outer: 20, color: 0xff6600, opacity: 0.3 },
+      { inner: 20, outer: 25, color: 0xff4400, opacity: 0.15 },
+    ];
+    
+    gameDiskLayers.forEach(layer => {
+      const disk = new THREE.Mesh(
+        new THREE.RingGeometry(layer.inner, layer.outer, 128),
+        new THREE.MeshBasicMaterial({
+          color: layer.color,
+          transparent: true,
+          opacity: layer.opacity,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        })
+      );
+      gameAccretionDiskGroup.add(disk);
+    });
+    
+    gameAccretionDiskGroup.rotation.x = Math.PI * 0.48;
+    blackholeGroup.add(gameAccretionDiskGroup);
+
+    // 4. 외곽 글로우
+    for (let i = 0; i < 2; i++) {
+      const glow = new THREE.Mesh(
+        new THREE.RingGeometry(25 + i * 5, 28 + i * 5, 64),
+        new THREE.MeshBasicMaterial({
+          color: 0xff4400,
+          transparent: true,
+          opacity: 0.08 - i * 0.03,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        })
+      );
+      glow.rotation.x = Math.PI * 0.48;
+      blackholeGroup.add(glow);
+    }
+
+    // 5. 빨려들어가는 파티클
+    const gameParticleCount = 200;
+    const gameParticleGeom = new THREE.BufferGeometry();
+    const gameParticlePositions = new Float32Array(gameParticleCount * 3);
+    const gameParticleAngles = new Float32Array(gameParticleCount);
+    const gameParticleRadii = new Float32Array(gameParticleCount);
+
+    for (let i = 0; i < gameParticleCount; i++) {
+      gameParticleAngles[i] = Math.random() * Math.PI * 2;
+      gameParticleRadii[i] = 6 + Math.random() * 18;
+      gameParticlePositions[i * 3] = Math.cos(gameParticleAngles[i]) * gameParticleRadii[i];
+      gameParticlePositions[i * 3 + 1] = 0;
+      gameParticlePositions[i * 3 + 2] = Math.sin(gameParticleAngles[i]) * gameParticleRadii[i];
+    }
+
+    gameParticleGeom.setAttribute('position', new THREE.BufferAttribute(gameParticlePositions, 3));
+    const gameParticleMat = new THREE.PointsMaterial({
+      color: 0xffdd88,
+      size: 0.2,
+      transparent: true,
+      opacity: 0.8,
+      depthWrite: false
+    });
+    const gameBlackholeParticles = new THREE.Points(gameParticleGeom, gameParticleMat);
+    gameAccretionDiskGroup.add(gameBlackholeParticles);
+
+    blackholeGroup.position.set(10, 200, -80); // 시작은 멀리
     blackholeGroup.visible = false;
     scene.add(blackholeGroup);
 
@@ -414,29 +1616,45 @@
       let r, g, b;
       
       if (t < 0.5) {
-        // 하늘색 → 보라/남색
+        // 맑은 하늘색 유지 (살짝만 변화)
         const p = t / 0.5;
-        r = Math.floor(208 - 148 * p);           // 208 → 60
-        g = Math.floor(240 - 220 * p);           // 240 → 20
-        b = Math.floor(255 - 75 * p);            // 255 → 180
+        r = Math.floor(135 + p * 30);  // 135 -> 165
+        g = Math.floor(206 + p * 20);  // 206 -> 226
+        b = Math.floor(250 - p * 20);  // 250 -> 230
+      } else if (t < 0.65) {
+        // 하늘색 -> 석양 (주황/골드)
+        const p = (t - 0.5) / 0.15;
+        r = Math.floor(165 + 90 * p);  // 165 -> 255
+        g = Math.floor(226 - 106 * p); // 226 -> 120
+        b = Math.floor(230 - 170 * p); // 230 -> 60
+      } else if (t < 0.75) {
+        // 석양 -> 진한 빨강 (분홍 방지)
+        const p = (t - 0.65) / 0.1;
+        r = Math.floor(255 - 75 * p);  // 255 -> 180
+        g = Math.floor(120 - 90 * p);  // 120 -> 30
+        b = Math.floor(60 - 20 * p);   // 60 -> 40
+      } else if (t < 0.88) {
+        // 진한 빨강 -> 보라색 밤
+        const p = (t - 0.75) / 0.13;
+        r = Math.floor(180 - 120 * p); // 180 -> 60
+        g = Math.floor(30 - 10 * p);   // 30 -> 20
+        b = Math.floor(40 + 140 * p);  // 40 -> 180
       } else {
-        // 보라/남색 → 옅은 보라빛 검정
-        const p = (t - 0.5) / 0.5;
-        r = Math.floor(60 - 45 * p);             // 60 → 15
-        g = Math.floor(20 - 15 * p);             // 20 → 5
-        b = Math.floor(180 - 140 * p);           // 180 → 40
+        // 보라색 밤 -> 우주
+        const p = (t - 0.88) / 0.12;
+        r = Math.floor(60 - 50 * p);   // 60 -> 10
+        g = Math.floor(20 - 15 * p);   // 20 -> 5
+        b = Math.floor(180 - 140 * p); // 180 -> 40
       }
       
       return { r, g, b };
     }
 
     function updateBackground(height, elapsed) {
-      // 1. 배경색 변화 (로그 함수로 초반 빠르게, 후반 천천히)
       const t = Math.min(Math.log(1 + height / 200) / Math.log(1 + SKY_NIGHT_HEIGHT / 200), 1);
       const { r, g, b } = getBackgroundColor(t);
       scene.background = new THREE.Color(`rgb(${r},${g},${b})`);
       
-      // 2. 별 나타나기
       if (height > STARS_START_HEIGHT) {
         const starOpacity = Math.min((height - STARS_START_HEIGHT) / 50, 1);
         starsMaterial.opacity = starOpacity;
@@ -445,70 +1663,369 @@
         starsMaterial.opacity = 0;
       }
       
-      // 2.5. 구름 업데이트
       const cloudOpacity = Math.max(0, 1 - (height / CLOUDS_FADE_HEIGHT));
       clouds.forEach(cloud => {
-        // 구름 투명도 조절
+        // 각 puff 투명도 조절
         cloud.children.forEach(puff => {
-          puff.material.opacity = 0.7 * cloudOpacity;
+          const baseOpacity = puff.material.opacity / (puff.userData?.lastCloudOpacity || 1);
+          puff.userData = puff.userData || {};
+          puff.userData.lastCloudOpacity = cloudOpacity;
+          puff.material.opacity = Math.min(0.8, baseOpacity) * cloudOpacity;
         });
         
-        // 구름이 카메라를 따라 올라가면서 약간 흔들림
-        cloud.position.y = cloud.userData.baseY + camera.position.y * 0.3;
-        cloud.position.x += Math.sin(clock.getElapsedTime() * cloud.userData.driftSpeed + cloud.userData.driftPhase) * 0.01;
+        // 구름 위치 업데이트
+        const time = clock.getElapsedTime();
+        
+        // X축으로 천천히 흘러가기 (바람 효과)
+        cloud.position.x = cloud.userData.baseX + Math.sin(time * cloud.userData.driftSpeedX + cloud.userData.driftPhase) * 3;
+        
+        // Y축 - 카메라 따라가기 + 살랑살랑
+        cloud.position.y = cloud.userData.baseY + camera.position.y * 0.3 + Math.sin(time * cloud.userData.driftSpeedY + cloud.userData.driftPhase) * 0.5;
       });
-      
-      // 구름 그룹 표시/숨김
       cloudsGroup.visible = cloudOpacity > 0;
       
-      // 3. 블랙홀 나타나기 + 애니메이션
       if (height > BLACKHOLE_START_HEIGHT) {
         blackholeGroup.visible = true;
-        const bhOpacity = Math.min((height - BLACKHOLE_START_HEIGHT) / 50, 1);
         
-        // 이벤트 호라이즌 펄스
-        eventHorizonMaterial.opacity = (0.7 + Math.sin(elapsed * 3) * 0.2) * bhOpacity;
-        
-        // 강착 원반 회전 (각 층마다 다른 속도)
-        diskLayers.forEach((layer, i) => {
-          layer.mesh.rotation.z += layer.speed;
-          layer.mesh.material.opacity = (0.6 - i * 0.1) * bhOpacity;
-        });
-        
-        // 광자 구체 반짝임
-        photonSphereMaterial.opacity = (0.2 + Math.sin(elapsed * 5) * 0.1) * bhOpacity;
-        
-        // 글로우 업데이트
-        glowLayers.forEach((glow, i) => {
-          glow.material.opacity = (0.15 - i * 0.04) * bhOpacity;
-        });
-        
-        // 파티클 빨려들어가는 애니메이션
-        const positions = blackholeParticles.geometry.attributes.position.array;
-        for (let i = 0; i < particleCount; i++) {
-          particleAngles[i] += 0.02 + (20 - particleRadii[i]) * 0.002;
-          particleRadii[i] -= 0.05;
-          if (particleRadii[i] < 5) {
-            particleRadii[i] = 8 + Math.random() * 15;
-          }
-          positions[i * 3] = Math.cos(particleAngles[i]) * particleRadii[i];
-          positions[i * 3 + 1] = Math.sin(particleAngles[i]) * particleRadii[i];
+        // 블랙홀 드론 시작 (한번만)
+        if (!blackholeDrone && audioStarted) {
+          startBlackholeDrone();
         }
-        blackholeParticles.geometry.attributes.position.needsUpdate = true;
-        particleMaterial.opacity = 0.8 * bhOpacity;
         
-        blackholeGroup.position.y = camera.position.y + 10;
-        blackholeGroup.rotation.z += 0.002;
+        // 높이에 따라 드론 볼륨 업데이트
+        const volumeProgress = Math.min((height - BLACKHOLE_START_HEIGHT) / (CLEAR_HEIGHT - BLACKHOLE_START_HEIGHT), 1);
+        updateBlackholeDroneVolume(volumeProgress);
+        
+        // 클리어 시퀀스 중에는 위치/투명도 업데이트 건너뛰기
+        if (!isClearSequence) {
+          const bhProgress = Math.min((height - BLACKHOLE_START_HEIGHT) / BH_APPROACH_DISTANCE, 1);
+          const bhOpacity = Math.min((height - BLACKHOLE_START_HEIGHT) / BH_FADEIN_DISTANCE, 1); // 부드러운 페이드인
+          
+          // Z축: -100에서 시작해서 -20까지 점진적 접근
+          const targetZ = -20;
+          const startZ = -100;
+          blackholeGroup.position.z = startZ + (targetZ - startZ) * bhProgress;
+          
+          // X, Y 위치 (원반이 카메라 아래로 깔리게, height(maxY) 기준으로 고정)
+          blackholeGroup.position.x = 10;
+          blackholeGroup.position.y = height - 5;
+          
+          // Y축 회전만 카메라 방향으로
+          const dx = camera.position.x - blackholeGroup.position.x;
+          const dz = camera.position.z - blackholeGroup.position.z;
+          blackholeGroup.rotation.y = Math.atan2(dx, dz);
+          blackholeGroup.rotation.x = 0.15;
+          
+          // 코어 투명도 페이드인
+          if (gameBhCore && gameBhCore.material) {
+            gameBhCore.material.transparent = true;
+            gameBhCore.material.opacity = bhOpacity;
+          }
+          
+          // 광자구 페이드인
+          if (gamePhotonSphereGlow && gamePhotonSphereGlow.material) {
+            gamePhotonSphereGlow.material.opacity = (0.12 + Math.sin(elapsed * 2) * 0.06) * bhOpacity;
+          }
+          if (gamePhotonSphereOuter && gamePhotonSphereOuter.material) {
+            gamePhotonSphereOuter.material.opacity = (0.06 + Math.sin(elapsed * 1.5 + 1) * 0.03) * bhOpacity;
+          }
+          
+          // 광자링 페이드인
+          if (gamePhotonRing && gamePhotonRing.material) {
+            gamePhotonRing.material.opacity = (0.9 + Math.sin(elapsed * 4) * 0.1) * bhOpacity;
+          }
+          
+          // 강착원반 페이드인 + 회전
+          gameAccretionDiskGroup.children.forEach((child, i) => {
+            if (child.material && child.type === 'Mesh') {
+              const baseOpacities = [0.95, 0.85, 0.7, 0.5, 0.3, 0.15];
+              child.material.opacity = (baseOpacities[i] || 0.5) * bhOpacity;
+            }
+          });
+          gameAccretionDiskGroup.rotation.z = elapsed * 0.12;
+        
+        // 파티클 빨려들어감
+        const positions = gameBlackholeParticles.geometry.attributes.position.array;
+        for (let i = 0; i < gameParticleCount; i++) {
+          gameParticleAngles[i] += 0.02 + (24 - gameParticleRadii[i]) * 0.003;
+          gameParticleRadii[i] -= 0.02;
+          if (gameParticleRadii[i] < 5.5) {
+            gameParticleRadii[i] = 6 + Math.random() * 18;
+          }
+          positions[i * 3] = Math.cos(gameParticleAngles[i]) * gameParticleRadii[i];
+          positions[i * 3 + 1] = 0;
+          positions[i * 3 + 2] = Math.sin(gameParticleAngles[i]) * gameParticleRadii[i];
+        }
+        gameBlackholeParticles.geometry.attributes.position.needsUpdate = true;
+        gameParticleMat.opacity = 0.8 * bhOpacity;
+        }
       } else {
         blackholeGroup.visible = false;
       }
     }
+    
+    // ─────────────────────────────────────
+    // 게임 클리어 시퀀스
+    // ─────────────────────────────────────
+    let clearSoundPlayed = { pulse: false, collapse: false };
+    
+    function updateClearSequence(elapsed, delta) {
+      const seqTime = elapsed - clearSequenceStart;
+      
+      // clearTargetPos가 없으면 리턴
+      if (!clearTargetPos) return false;
+      
+      // 0~2초: 모든 것이 블랙홀로 빨려들어감 + 카메라 진동
+      if (seqTime < 2) {
+        // 펄스 사운드 시작 (한번만)
+        if (!clearSoundPlayed.pulse) {
+          playClearPulseSound();
+          clearSoundPlayed.pulse = true;
+        }
+        
+        const progress = seqTime / 2;
+        const easeProgress = Math.pow(progress, 3); // 처음 느리고 끝에 확 빨려감
+        
+        // 블랙홀 점점 커짐 (펄스 없이)
+        blackholeGroup.scale.setScalar(1 + easeProgress * 0.3);
+        
+        // 카메라 진동 (점점 강해짐)
+        const shakeIntensity = progress * 0.5;
+        camera.position.x = (Math.random() - 0.5) * shakeIntensity;
+        
+        isCharging = false;
+        stopChargeSound();
+        chargeBar.style.display = 'none';
+        
+        // 플레이어: 블랙홀 방향으로 이동 + 작아지면서 투명해짐
+        const playerScale = Math.max(0.01, 1 - easeProgress);
+        const pullStrength = easeProgress * 0.15;
+        player.position.x += (clearTargetPos.x - player.position.x) * pullStrength;
+        player.position.y += (clearTargetPos.y - player.position.y) * pullStrength;
+        player.position.z += (clearTargetPos.z - player.position.z) * pullStrength;
+        
+        player.scale.setScalar(playerScale);
+        player.rotation.x += 0.2 * (1 + easeProgress);
+        player.rotation.z += 0.15 * (1 + easeProgress);
+        // 플레이어 투명도
+        player.traverse(child => {
+          if (child.material) {
+            child.material.transparent = true;
+            child.material.opacity = playerScale;
+          }
+        });
+        
+        // 발판들: 블랙홀 방향으로 이동 + 작아지면서 투명해짐
+        platforms.forEach(p => {
+          const scale = Math.max(0.01, 1 - easeProgress);
+          const pPull = easeProgress * 0.12;
+          p.position.x += (clearTargetPos.x - p.position.x) * pPull;
+          p.position.y += (clearTargetPos.y - p.position.y) * pPull;
+          p.position.z += (clearTargetPos.z - p.position.z) * pPull;
+          p.scale.setScalar(scale);
+          p.rotation.x += 0.1;
+          p.rotation.z += 0.08;
+          // 발판 투명도
+          p.traverse(child => {
+            if (child.material) {
+              child.material.transparent = true;
+              child.material.opacity = scale;
+            }
+          });
+        });
+        
+        // 별들 투명해짐
+        if (starsMaterial) {
+          starsMaterial.opacity = Math.max(0, 1 - easeProgress);
+        }
+        
+        return seqTime > 1.5; // 1.5초 이후부터 게임 멈춤
+      }
+      
+      // 2~2.5초: 블랙홀 확 수축
+      if (seqTime >= 2 && seqTime < 2.5) {
+        // 수축 사운드 (한번만)
+        if (!clearSoundPlayed.collapse) {
+          playClearCollapseSound();
+          stopBlackholeDrone();
+          clearSoundPlayed.collapse = true;
+        }
+        
+        const collapseProgress = (seqTime - 2) / 0.5;
+        
+        // 카메라 계속 진동
+        const shakeIntensity = 0.5;
+        camera.position.x += (Math.random() - 0.5) * shakeIntensity;
+        
+        // 급격히 수축
+        blackholeGroup.scale.setScalar(Math.max(0.01, 1.3 * Math.pow(1 - collapseProgress, 4)));
+        
+        player.visible = false;
+        
+        const brightness = Math.floor(collapseProgress * 255);
+        scene.background = new THREE.Color(`rgb(${brightness},${brightness},${brightness})`);
+        
+        return true;
+      }
+      
+      // 2.5초 이후: 클리어 화면
+      if (seqTime >= 2.5) {
+        blackholeGroup.visible = false;
+        showClearScreen();
+        return true;
+      }
+      
+      return false;
+    }
+    
+    const CLEAR_MESSAGES = [
+      "You reached the event horizon!",
+      "Absorbed into the singularity...",
+      "Beyond the infinite...",
+      "One with the cosmos now.",
+      "Time stops here.",
+      "Welcome to eternity."
+    ];
+
+    let clearScreenInitialized = false;
+    
+    function showClearScreen() {
+      gameState = 'clear';
+      
+      // 드론 정지
+      stopBlackholeDrone();
+      
+      // UI 숨기기
+      scoreEl.style.display = 'none';
+      chargeBar.style.display = 'none';
+      if (pauseBtn) pauseBtn.style.display = 'none';
+      
+      // 랜덤 문구 선택
+      const clearMsgEl = document.getElementById('clearMessage');
+      if (clearMsgEl) {
+        clearMsgEl.textContent = CLEAR_MESSAGES[Math.floor(Math.random() * CLEAR_MESSAGES.length)];
+      }
+      
+      // 클리어 화면 표시
+      const clearScreen = document.getElementById('gameClearScreen');
+      const clearScoreText = document.getElementById('clearScoreText');
+      clearScoreText.textContent = `Final Score: ${finalScoreValue}`;
+      clearScreen.style.display = 'block';
+      
+      // 이벤트 리스너는 한 번만 등록
+      if (!clearScreenInitialized) {
+        clearScreenInitialized = true;
+        
+        const clearNameInput = document.getElementById('clearPlayerNameInput');
+        const clearSubmitBtn = document.getElementById('clearSubmitScoreBtn');
+        
+        clearNameInput.addEventListener('input', () => {
+          clearSubmitBtn.disabled = false;
+          clearSubmitBtn.style.opacity = '1';
+        });
+        
+        clearSubmitBtn.addEventListener('click', async () => {
+          const name = clearNameInput.value.trim() || 'Champion';
+          try {
+            await fetch(`${API_BASE}/api/scores`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name, score: finalScoreValue })
+            });
+            clearSubmitBtn.textContent = '✓ Saved!';
+            clearSubmitBtn.disabled = true;
+          } catch (e) {
+            clearSubmitBtn.textContent = 'Error';
+          }
+        });
+        
+        // 타이틀로 버튼 (무한모드 해금)
+        document.getElementById('clearToTitleBtn').addEventListener('click', () => {
+          // 무한모드 해금 저장
+          if (!infiniteModeUnlocked) {
+            localStorage.setItem('infiniteModeUnlocked', 'true');
+            localStorage.setItem('showUnlockPopup', 'true'); // 팝업 표시 플래그
+          }
+          location.reload();
+        });
+      }
+    }
+
+    // 타이틀 블랙홀 애니메이션 (인터스텔라 스타일)
+    function updateTitleBlackhole(elapsed) {
+      // Y축 회전만 카메라 방향으로 (원반 기울기는 유지) - 재생성 중 제외
+      if (!bhRebirthActive) {
+        const dx = camera.position.x - titleBlackholeGroup.position.x;
+        const dz = camera.position.z - titleBlackholeGroup.position.z;
+        titleBlackholeGroup.rotation.y = Math.atan2(dx, dz);
+      }
+      
+      // 광자구 펄스
+      const photonSphereGlow = titleBlackholeGroup.children[1];
+      if (photonSphereGlow && photonSphereGlow.material) {
+        photonSphereGlow.material.opacity = 0.12 + Math.sin(elapsed * 2) * 0.06;
+      }
+      const photonSphereOuter = titleBlackholeGroup.children[2];
+      if (photonSphereOuter && photonSphereOuter.material) {
+        photonSphereOuter.material.opacity = 0.06 + Math.sin(elapsed * 1.5 + 1) * 0.03;
+      }
+
+      // 강착원반 천천히 회전
+      const accretionDiskGroup = titleBlackholeGroup.children.find(c => c.type === 'Group');
+      if (accretionDiskGroup) {
+        accretionDiskGroup.rotation.z = elapsed * 0.12;
+      }
+
+      // 광자링 펄스
+      const photonRing = titleBlackholeGroup.children[3];
+      if (photonRing && photonRing.material) {
+        photonRing.material.opacity = 0.9 + Math.sin(elapsed * 4) * 0.1;
+      }
+
+      // 중력 렌즈 미세한 펄스
+      titleBlackholeGroup.children.forEach(child => {
+        if (child.geometry && child.geometry.type === 'TorusGeometry' && 
+            child.geometry.parameters.arc && child.geometry.parameters.arc < Math.PI * 2) {
+          child.material.opacity = child.material.opacity * (0.95 + Math.sin(elapsed * 2 + child.position.y * 3) * 0.05);
+        }
+      });
+
+      // 파티클 빨려들어감
+      const particles = titleBlackholeGroup.children.find(c => c.type === 'Points' && c.geometry.attributes.position.count === titleParticleCount);
+      if (particles) {
+        const positions = particles.geometry.attributes.position.array;
+        for (let i = 0; i < titleParticleCount; i++) {
+          titleParticleAngles[i] += 0.02 + (24 - titleParticleRadii[i]) * 0.003;
+          titleParticleRadii[i] -= 0.02;
+          if (titleParticleRadii[i] < 5.5) {
+            titleParticleRadii[i] = 6 + Math.random() * 18;
+          }
+          positions[i * 3] = Math.cos(titleParticleAngles[i]) * titleParticleRadii[i];
+          positions[i * 3 + 1] = 0;
+          positions[i * 3 + 2] = Math.sin(titleParticleAngles[i]) * titleParticleRadii[i];
+        }
+        particles.geometry.attributes.position.needsUpdate = true;
+      }
+
+      // 전체 스케일 숨쉬기 (카운트다운 중이 아니고 이스터에그/재생성 아닐 때만)
+      if (gameState !== 'countdown' && !bhEasterEggActive && !bhRebirthActive) {
+        const scale = 1.0 + Math.sin(elapsed * 0.3) * 0.03;
+        titleBlackholeGroup.scale.setScalar(scale);
+      }
+
+      // 왜곡된 별빛 반짝임
+      const distortedStars = titleBlackholeGroup.children.find(c => c.type === 'Points' && c.geometry.attributes.position.count === 60);
+      if (distortedStars) {
+        distortedStars.material.opacity = 0.6 + Math.sin(elapsed * 5) * 0.3;
+      }
+    }
 
     // ─────────────────────────────────────
-    // UI
+    // UI 요소
     // ─────────────────────────────────────
     const scoreEl = document.getElementById('score');
     const chargeFill = document.getElementById('chargeFill');
+    const chargeBar = document.getElementById('chargeBar');
     const finalScoreText = document.getElementById('finalScoreText');
     const gameOverScreen = document.getElementById('gameOverScreen');
     const platformLabelsContainer = document.getElementById('platformLabelsContainer');
@@ -517,6 +2034,301 @@
     const playAgainBtn = document.getElementById('playAgainBtn');
     const leaderboardList = document.getElementById('leaderboardList');
     const nameHint = document.getElementById('nameHint');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const pauseScreen = document.getElementById('pauseScreen');
+    const resumeBtn = document.getElementById('resumeBtn');
+    const restartBtn = document.getElementById('restartBtn');
+    const quitBtn = document.getElementById('quitBtn');
+    const titleScreen = document.getElementById('titleScreen');
+    const startBtn = document.getElementById('startBtn');
+    const infiniteModeBtn = document.getElementById('infiniteModeBtn');
+    const controlsBtn = document.getElementById('controlsBtn');
+    const controlsScreen = document.getElementById('controlsScreen');
+    const closeControlsBtn = document.getElementById('closeControlsBtn');
+    const leaderboardTitleBtn = document.getElementById('leaderboardTitleBtn');
+    const leaderboardScreen = document.getElementById('leaderboardScreen');
+    const leaderboardScreenContent = document.getElementById('leaderboardScreenContent');
+    const closeLeaderboardBtn = document.getElementById('closeLeaderboardBtn');
+    const countdownEl = document.getElementById('countdown');
+    const readyScreen = document.getElementById('readyScreen');
+    
+    // 버튼 클릭 효과음
+    function playButtonSound() {
+      if (!audioStarted) return;
+      buttonSynth.triggerAttackRelease("G4", "0.05");
+    }
+    
+    // 타이틀 화면 첫 클릭 시 블랙홀 드론 시작
+    let titleDroneStarted = false;
+    async function startTitleDrone() {
+      if (titleDroneStarted) return;
+      await startAudio();
+      startBlackholeDrone();
+      titleDroneStarted = true;
+    }
+    
+    titleScreen.addEventListener('click', startTitleDrone);
+
+    // ─────────────────────────────────────
+    // 타이틀 블랙홀 이스터에그 (코어 10번 클릭)
+    // ─────────────────────────────────────
+    let bhCoreClickCount = 0;
+    let bhEasterEggActive = false;
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    renderer.domElement.addEventListener('click', (event) => {
+      if (gameState !== 'title' || bhEasterEggActive) return;
+      
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObject(titleBlackholeGroup, true);
+      
+      // 블랙홀 코어 근처 클릭 확인
+      if (intersects.length > 0) {
+        const hitPoint = intersects[0].point;
+        const corePos = new THREE.Vector3();
+        titleBlackholeGroup.getWorldPosition(corePos);
+        const distance = hitPoint.distanceTo(corePos);
+        
+        if (distance < 8) { // 코어 근처
+          bhCoreClickCount++;
+          
+          // 클릭할수록 블랙홀 살짝 펄스
+          const pulse = 1 + 0.1 * Math.sin(bhCoreClickCount);
+          titleBlackholeGroup.scale.setScalar(pulse);
+          setTimeout(() => {
+            if (!bhEasterEggActive) titleBlackholeGroup.scale.setScalar(1);
+          }, 100);
+          
+          if (bhCoreClickCount >= 10) {
+            triggerBhEasterEgg();
+          }
+        }
+      }
+    });
+
+    function triggerBhEasterEgg() {
+      bhEasterEggActive = true;
+      
+      const startTime = performance.now();
+      const suckDuration = 2000;
+      const collapseDuration = 500;
+      
+      // 블랙홀 월드 위치 저장
+      const bhWorldPos = new THREE.Vector3();
+      titleBlackholeGroup.getWorldPosition(bhWorldPos);
+      
+      // 타이틀 화면을 캔버스 위치 기준으로 빨아들이기 위한 중심점
+      const bhScreenPos = bhWorldPos.clone().project(camera);
+      const bhScreenX = (bhScreenPos.x + 1) / 2 * window.innerWidth;
+      const bhScreenY = (-bhScreenPos.y + 1) / 2 * window.innerHeight;
+      
+      // 빨려들어갈 요소들
+      const gameTitle = document.getElementById('gameTitle');
+      const subtitleP = document.querySelector('#titleScreen p');
+      const titleFooter = document.getElementById('titleFooter');
+      const allButtons = [startBtn, infiniteModeBtn, controlsBtn, leaderboardTitleBtn];
+      const allElements = [gameTitle, subtitleP, titleFooter, ...allButtons].filter(el => el);
+      
+      // 초기 위치 저장 (중심 기준)
+      const elementsData = [];
+      allElements.forEach(el => {
+        if (el && el.style.display !== 'none') {
+          const rect = el.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            // 기존 애니메이션 저장 후 끄기
+            const computedStyle = getComputedStyle(el);
+            const originalAnimation = computedStyle.animation;
+            el.style.setProperty('animation', 'none', 'important');
+            elementsData.push({
+              el,
+              centerX,
+              centerY,
+              width: rect.width,
+              height: rect.height,
+              originalAnimation
+            });
+          }
+        }
+      });
+      
+      function animateEasterEgg() {
+        const elapsed = performance.now() - startTime;
+        
+        if (elapsed < suckDuration) {
+          // 빨려들어가는 단계
+          const progress = elapsed / suckDuration;
+          // 더 극적인 가속 (처음 느리고 끝에 확 빨려감)
+          const easeProgress = Math.pow(progress, 3);
+          
+          // 블랙홀 점점 커짐 (펄스 없이)
+          const scale = 1 + easeProgress * 0.3;
+          titleBlackholeGroup.scale.setScalar(scale);
+          
+          // UI 요소들 블랙홀로 빨려들어감 + 떨림
+          elementsData.forEach(data => {
+            const dx = bhScreenX - data.centerX;
+            const dy = bhScreenY - data.centerY;
+            const moveX = dx * easeProgress;
+            const moveY = dy * easeProgress;
+            const scale = Math.max(0.01, 1 - easeProgress);
+            
+            // 떨림 효과 (progress에 비례해서 점점 강해짐)
+            const shakeIntensity = progress * 8;
+            const shakeX = (Math.random() - 0.5) * shakeIntensity;
+            const shakeY = (Math.random() - 0.5) * shakeIntensity;
+            
+            data.el.style.transform = `translate(${moveX + shakeX}px, ${moveY + shakeY}px) scale(${scale})`;
+            data.el.style.opacity = scale;
+          });
+          
+          // 별들도 빨려들어감
+          const starPositions = starsGeometry.attributes.position.array;
+          for (let i = 0; i < starCount; i++) {
+            starPositions[i * 3] *= (1 - easeProgress * 0.02);
+            starPositions[i * 3 + 1] *= (1 - easeProgress * 0.02);
+          }
+          starsGeometry.attributes.position.needsUpdate = true;
+          
+          // 카메라도 흔들림 (점점 강해짐)
+          const camShake = progress * 0.5;
+          camera.position.x = (Math.random() - 0.5) * camShake;
+          camera.position.y = 5 + (Math.random() - 0.5) * camShake;
+          
+          requestAnimationFrame(animateEasterEgg);
+        } else if (elapsed < suckDuration + collapseDuration) {
+          // 수축 단계 (0.5초만에 확 수축!)
+          const collapseProgress = (elapsed - suckDuration) / collapseDuration;
+          
+          // 카메라 계속 흔들림
+          const camShake = 0.5;
+          camera.position.x = (Math.random() - 0.5) * camShake;
+          camera.position.y = 5 + (Math.random() - 0.5) * camShake;
+          
+          // UI 완전히 숨김
+          elementsData.forEach(data => {
+            data.el.style.opacity = '0';
+          });
+          
+          // 블랙홀 확 수축 (급격히 수축)
+          const collapseScale = Math.max(0.001, 1.3 * Math.pow(1 - collapseProgress, 4));
+          titleBlackholeGroup.scale.setScalar(collapseScale);
+          
+          // 번쩍! (마지막에 밝아짐)
+          if (collapseProgress > 0.85) {
+            const flashIntensity = (collapseProgress - 0.85) / 0.15;
+            const c = Math.floor(flashIntensity * 255);
+            scene.background = new THREE.Color(`rgb(${c},${c},${c})`);
+          }
+          
+          requestAnimationFrame(animateEasterEgg);
+        } else {
+          // 완료 - 리셋
+          playClearCollapseSound();
+          
+          // 화면 암전
+          scene.background = new THREE.Color(0x000000);
+          titleBlackholeGroup.visible = false;
+          
+          setTimeout(() => {
+            // 모든 것 리셋
+            bhEasterEggActive = false;
+            bhCoreClickCount = 0;
+            
+            // 카메라 리셋
+            camera.position.set(0, 5, 10);
+            
+            // UI 리셋
+            elementsData.forEach(data => {
+              data.el.style.transform = '';
+              data.el.style.opacity = '';
+              data.el.style.removeProperty('animation');
+            });
+            
+            // 별 리셋
+            for (let i = 0; i < starCount; i++) {
+              starsGeometry.attributes.position.array[i * 3] = (Math.random() - 0.5) * 100;
+              starsGeometry.attributes.position.array[i * 3 + 1] = Math.random() * 500 + 50;
+              starsGeometry.attributes.position.array[i * 3 + 2] = -20 - Math.random() * 30;
+            }
+            starsGeometry.attributes.position.needsUpdate = true;
+            
+            // 배경색 페이드인
+            scene.background = new THREE.Color(0x0a0515);
+            
+            // 타이틀 화면 페이드인
+            titleScreen.style.opacity = '0';
+            setTimeout(() => {
+              titleScreen.style.transition = 'opacity 1s ease-in';
+              titleScreen.style.opacity = '1';
+              setTimeout(() => {
+                titleScreen.style.transition = '';
+              }, 1000);
+            }, 100);
+            
+            // 블랙홀은 10초 후 재생성
+            setTimeout(() => {
+              startBlackholeRebirth();
+            }, 10000);
+            
+          }, 300);
+        }
+      }
+      
+      animateEasterEgg();
+    }
+
+    // 블랙홀 재생성 애니메이션 (팽창)
+    let bhRebirthActive = false;
+    
+    function startBlackholeRebirth() {
+      const expandDuration = 800;   // 팽창 시간
+      const settleDuration = 1500;  // 안정화 시간
+      const overshoot = 1.15;       // 오버슈트 크기 (15% 더 큼)
+      
+      bhRebirthActive = true;
+      
+      // 블랙홀 초기 상태: 아주 작게
+      titleBlackholeGroup.visible = true;
+      titleBlackholeGroup.scale.setScalar(0.001);
+      
+      // 효과음
+      playBlackholeExplodeSound();
+      
+      const startTime = performance.now();
+      
+      function animateRebirth() {
+        const elapsed = performance.now() - startTime;
+        const globalElapsed = performance.now() / 1000; // 숨쉬기 계산용
+        const breathScale = 1.0 + Math.sin(globalElapsed * 0.3) * 0.03; // 현재 숨쉬기 스케일
+        
+        if (elapsed < expandDuration) {
+          // 1단계: 빠르게 팽창 (오버슈트까지)
+          const progress = elapsed / expandDuration;
+          const expandScale = Math.pow(progress, 0.25) * overshoot;
+          titleBlackholeGroup.scale.setScalar(Math.max(0.001, expandScale));
+          
+          requestAnimationFrame(animateRebirth);
+        } else if (elapsed < expandDuration + settleDuration) {
+          // 2단계: 천천히 현재 숨쉬기 스케일로
+          const progress = (elapsed - expandDuration) / settleDuration;
+          const scale = overshoot - (overshoot - breathScale) * progress;
+          titleBlackholeGroup.scale.setScalar(scale);
+          
+          requestAnimationFrame(animateRebirth);
+        } else {
+          // 완료 - 숨쉬기 애니메이션이 자연스럽게 이어받음
+          bhRebirthActive = false;
+        }
+      }
+      
+      animateRebirth();
+    }
 
     // ─────────────────────────────────────
     // 서버 API 연결
@@ -547,6 +2359,32 @@
       }
     }
 
+    async function postCheatLog(name, score, playTimeSeconds) {
+      try {
+        const res = await fetch(`${API_BASE}/api/cheat-logs`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            player_name: name,
+            device_info: navigator.userAgent,
+            max_reached_height: maxReachedHeight,
+            total_positive_jumps: totalPositiveJumps,
+            possible_max_height: STARTING_HEIGHT + totalPositiveJumps + 10,
+            score: score,
+            play_time_seconds: playTimeSeconds,
+            game_mode: isInfiniteMode ? 'infinite' : 'normal',
+            jump_logs: JSON.stringify(jumpLogs)
+          })
+        });
+        if (!res.ok) throw new Error('cheat log post failed');
+        console.log('[치트 로그] 서버에 저장됨');
+        return await res.json();
+      } catch (e) {
+        console.warn('cheat log post failed:', e);
+        return null;
+      }
+    }
+
     async function fetchServerLeaderboard(limit = 10) {
       try {
         const res = await fetch(`${API_BASE}/api/scores/top?limit=${limit}`, { method: 'GET' });
@@ -559,68 +2397,588 @@
     }
 
     function renderServerLeaderboardData(data) {
-      if (!data || !Array.isArray(data.items)) return false;
+      // 게임오버 화면의 리더보드에 렌더링
+      const container = leaderboardList.parentElement || leaderboardList;
       leaderboardList.innerHTML = '';
-      data.items.forEach(item => {
+      
+      const items = data?.items || [];
+      const medals = ['👑', '🥈', '🥉'];
+      
+      // 1~10위 표시
+      for (let i = 0; i < 10; i++) {
+        const rank = i + 1;
+        const item = items[i];
         const li = document.createElement('li');
-        li.textContent = `${item.name} — ${item.score}`;
+        li.style.cssText = 'display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.1);';
+        
+        if (rank <= 3) {
+          li.style.fontWeight = 'bold';
+          if (rank === 1) li.style.color = '#ffd700';
+          else if (rank === 2) li.style.color = '#c0c0c0';
+          else if (rank === 3) li.style.color = '#cd7f32';
+        }
+        
+        if (item) {
+          const medal = rank <= 3 ? medals[rank - 1] + ' ' : '';
+          li.innerHTML = `<span>${rank}. ${medal}${item.name}</span><span>${item.score}</span>`;
+        } else {
+          li.innerHTML = `<span style="color:rgba(255,255,255,0.3)">${rank}. —</span><span style="color:rgba(255,255,255,0.3)">—</span>`;
+        }
+        
         leaderboardList.appendChild(li);
-      });
+      }
+      
+      // 10위와 11위 사이 분리선
+      if (items.length > 10) {
+        const divider = document.createElement('li');
+        divider.style.cssText = 'border-bottom:2px dashed rgba(255,255,255,0.3); margin:8px 0; list-style:none;';
+        leaderboardList.appendChild(divider);
+        
+        // 11위 이후 표시
+        for (let i = 10; i < items.length; i++) {
+          const rank = i + 1;
+          const item = items[i];
+          const li = document.createElement('li');
+          li.style.cssText = 'display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.7);';
+          li.innerHTML = `<span>${rank}. ${item.name}</span><span>${item.score}</span>`;
+          leaderboardList.appendChild(li);
+        }
+      }
+      
       return true;
     }
 
     // ─────────────────────────────────────
-    // Game state
+    // Game state variables
     // ─────────────────────────────────────
-    const startTime = Date.now();
-    let isInvincible = true;
+    let gameStartTime = 0;
+    let isInvincible = false;
     let velocityY = 0, isGrounded = false, onPlatform = null;
     let chargeTime = 0, isCharging = false, chargeDirection = 1;
     const maxCharge = 1.0, chargeSpeed = 0.8;
     let touchActive = false, touchMode = null, touchStartX = 0, touchLastX = 0, passedDeadzone = false;
     const DRAG_GAIN = 0.01, DEADZONE_PX = 8, MIN_JUMP = 0.2;
 
+    // 점프 기록 시스템 (치트 감지용)
+    let jumpStartY = 0; // 점프 시작 높이
+    let totalPositiveJumps = 0; // 위로 올라간 점프 높이 합계
+    let maxReachedHeight = 0; // 도달한 최고 높이
+    let jumpLogs = []; // 매 점프 상세 기록
+    let jumpCount = 0; // 점프 횟수
+    let cheatDetected = false; // 치트 감지 여부
+    const STARTING_HEIGHT = -2; // 시작 발판 높이
+
     let hasSavedThisGame = false;
     let finalScoreValue = 0;
-    
-    // 현재 서있는 발판 ID 추적 (소리 중복 방지)
     let lastLandedPlatformId = null;
+    
+    // 무한모드 관련
+    let infiniteModeUnlocked = localStorage.getItem('infiniteModeUnlocked') === 'true';
+    let isInfiniteMode = false;
+    
+    // 무한모드 해금 시 버튼 표시
+    if (infiniteModeUnlocked) {
+      infiniteModeBtn.style.display = 'block';
+    }
+    
+    // 해금 팝업 표시 (처음 해금 시)
+    const unlockPopup = document.getElementById('unlockPopup');
+    const closeUnlockBtn = document.getElementById('closeUnlockBtn');
+    
+    if (localStorage.getItem('showUnlockPopup') === 'true') {
+      unlockPopup.style.display = 'flex';
+      localStorage.removeItem('showUnlockPopup'); // 한 번만 표시
+    }
+    
+    closeUnlockBtn.addEventListener('click', () => {
+      unlockPopup.style.display = 'none';
+    });
+    
+    // 개발용 해금 토글 버튼
+    document.getElementById('devToggleBtn').addEventListener('click', () => {
+      if (localStorage.getItem('infiniteModeUnlocked') === 'true') {
+        localStorage.removeItem('infiniteModeUnlocked');
+        alert('무한모드 잠금됨 (새로고침 필요)');
+      } else {
+        localStorage.setItem('infiniteModeUnlocked', 'true');
+        localStorage.setItem('showUnlockPopup', 'true');
+        alert('무한모드 해금됨 (새로고침 필요)');
+      }
+      location.reload();
+    });
+    
+    // 게임 클리어 관련
+    let isClearSequence = false;
+    let clearSequenceStart = 0;
+    let clearTargetPos = null; // 빨려들어갈 목표 위치
+    let clearScreenX = 0;      // 블랙홀 화면 X 좌표 (고정)
+    let clearScreenY = 0;      // 블랙홀 화면 Y 좌표 (고정)
 
-    // Player
-    const player = new THREE.Mesh(
+    // Player (단일 박스 + 면별 색상으로 입체감 + 눈)
+    const playerGroup = new THREE.Group();
+    
+    const playerMaterials = [
+      new THREE.MeshBasicMaterial({ color: 0x3377dd }), // +X 오른쪽
+      new THREE.MeshBasicMaterial({ color: 0x3377dd }), // -X 왼쪽
+      new THREE.MeshBasicMaterial({ color: 0x55aaff }), // +Y 윗면 (밝게)
+      new THREE.MeshBasicMaterial({ color: 0x2255aa }), // -Y 아랫면 (어둡게)
+      new THREE.MeshBasicMaterial({ color: 0x4499ee }), // +Z 앞면
+      new THREE.MeshBasicMaterial({ color: 0x3377dd }), // -Z 뒷면
+    ];
+    const playerBody = new THREE.Mesh(
       new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshBasicMaterial({ color: 0x0000ff })
+      playerMaterials
     );
+    playerGroup.add(playerBody);
+    
+    // 눈 그룹 (깜빡임용)
+    const leftEyeGroup = new THREE.Group();
+    const rightEyeGroup = new THREE.Group();
+    
+    // 눈 (사각형 - 레트로 스타일)
+    const eyeGeo = new THREE.PlaneGeometry(0.2, 0.26);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+    
+    const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+    leftEyeGroup.add(leftEye);
+    
+    const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+    rightEyeGroup.add(rightEye);
+    
+    leftEyeGroup.position.set(-0.2, 0.1, 0.51);
+    rightEyeGroup.position.set(0.2, 0.1, 0.51);
+    playerGroup.add(leftEyeGroup);
+    playerGroup.add(rightEyeGroup);
+    
+    // 깜빡임 상태
+    let nextBlinkTime = 1.5 + Math.random() * 2.25;
+    let isBlinking = false;
+    let blinkProgress = 0;
+    
+    // 호환성을 위한 참조
+    const player = playerGroup;
+    
+    player.visible = false; // 타이틀에서는 숨김
     scene.add(player);
     player.position.y = 0;
 
     // Keyboard
     const input = { left: false, right: false };
+    
     document.addEventListener('keydown', async e => {
-      if (e.code === 'KeyA' || e.code === 'ArrowLeft') input.left = true;
-      if (e.code === 'KeyD' || e.code === 'ArrowRight') input.right = true;
-      if (e.code === 'Space' && isGrounded && !isCharging) {
-        await startAudio();
-        isCharging = true;
-        startChargeSound();
+      if (gameState === 'ready') {
+        if (e.code === 'Space') {
+          await startAudio();
+          startFromReady();
+        }
+        return;
+      }
+      if (gameState === 'playing') {
+        if (e.code === 'KeyA' || e.code === 'ArrowLeft') input.left = true;
+        if (e.code === 'KeyD' || e.code === 'ArrowRight') input.right = true;
+        if (e.code === 'Space' && isGrounded && !isCharging) {
+          await startAudio();
+          isCharging = true;
+          startChargeSound();
+        }
+        if (e.code === 'Escape') {
+          pauseGame();
+        }
+      } else if (gameState === 'paused') {
+        if (e.code === 'Escape') {
+          resumeGame();
+        }
       }
     });
+    
     document.addEventListener('keyup', e => {
-      if (e.code === 'KeyA' || e.code === 'ArrowLeft') input.left = false;
-      if (e.code === 'KeyD' || e.code === 'ArrowRight') input.right = false;
-      if (e.code === 'Space' && isCharging) {
-        stopChargeSound();
-        if (isGrounded) {
-          velocityY = Math.max(chargeTime, MIN_JUMP);
-          isGrounded = false;
-          lastLandedPlatformId = null; // 점프하면 리셋
-          playJumpSound();
+      if (gameState === 'playing') {
+        if (e.code === 'KeyA' || e.code === 'ArrowLeft') input.left = false;
+        if (e.code === 'KeyD' || e.code === 'ArrowRight') input.right = false;
+        if (e.code === 'Space' && isCharging) {
+          stopChargeSound();
+          if (isGrounded) {
+            velocityY = Math.max(chargeTime, MIN_JUMP);
+            isGrounded = false;
+            lastLandedPlatformId = null;
+            playJumpSound();
+            startJumpRecord();
+          }
+          chargeTime = 0; isCharging = false; chargeDirection = 1;
+          chargeFill.style.width = '0%';
         }
-        chargeTime = 0; isCharging = false; chargeDirection = 1;
-        chargeFill.style.width = '0%';
       }
     });
 
+    // ─────────────────────────────────────
+    // 점프 기록 시스템 (치트 감지)
+    // ─────────────────────────────────────
+    let currentJumpType = 'normal'; // 현재 점프 타입
+    
+    function startJumpRecord(type = 'normal') {
+      jumpStartY = player.position.y;
+      currentJumpType = type;
+    }
+    
+    function endJumpRecord() {
+      const jumpHeight = player.position.y - jumpStartY;
+      jumpCount++;
+      
+      // 점프 로그 기록
+      jumpLogs.push({
+        jump_num: jumpCount,
+        start_y: parseFloat(jumpStartY.toFixed(2)),
+        end_y: parseFloat(player.position.y.toFixed(2)),
+        height: parseFloat(jumpHeight.toFixed(2)),
+        type: currentJumpType,
+        timestamp: Date.now()
+      });
+      
+      // 위로 올라간 경우만 누적
+      if (jumpHeight > 0) {
+        totalPositiveJumps += jumpHeight;
+      }
+      
+      // 최고 높이 갱신
+      if (player.position.y > maxReachedHeight) {
+        maxReachedHeight = player.position.y;
+      }
+      
+      // 치트 체크: 도달 가능한 최대 높이 계산
+      const possibleMaxHeight = STARTING_HEIGHT + totalPositiveJumps + 10; // 여유값 10
+      
+      if (maxReachedHeight > possibleMaxHeight) {
+        cheatDetected = true;
+        console.warn(`[치트 의심] 최고높이: ${maxReachedHeight.toFixed(2)}, 가능높이: ${possibleMaxHeight.toFixed(2)}, 누적점프: ${totalPositiveJumps.toFixed(2)}`);
+      }
+    }
+    
+    function getHeightCheck() {
+      return {
+        maxReached: maxReachedHeight,
+        totalJumps: totalPositiveJumps,
+        possibleMax: STARTING_HEIGHT + totalPositiveJumps + 10,
+        isSuspicious: cheatDetected,
+        jumpCount: jumpCount
+      };
+    }
+
+    // ─────────────────────────────────────
+    // 일시정지 기능
+    // ─────────────────────────────────────
+    function pauseGame() {
+      if (gameState !== 'playing') return;
+      gameState = 'paused';
+      pauseScreen.style.display = 'block';
+      stopChargeSound();
+    }
+
+    function resumeGame() {
+      if (gameState !== 'paused') return;
+      gameState = 'playing';
+      pauseScreen.style.display = 'none';
+    }
+
+    pauseBtn.addEventListener('click', () => {
+      if (gameState === 'playing') pauseGame();
+      else if (gameState === 'paused') resumeGame();
+    });
+
+    resumeBtn.addEventListener('click', resumeGame);
+    restartBtn.addEventListener('click', () => {
+      pauseScreen.style.display = 'none';
+      resetGameForReplay();
+    });
+    quitBtn.addEventListener('click', () => window.location.reload());
+
+    // ─────────────────────────────────────
+    // 타이틀 & 조작법 화면
+    // ─────────────────────────────────────
+    controlsBtn.addEventListener('click', async () => {
+      await startTitleDrone();
+      playButtonSound();
+      controlsScreen.style.display = 'block';
+    });
+
+    closeControlsBtn.addEventListener('click', () => {
+      playButtonSound();
+      controlsScreen.style.display = 'none';
+    });
+
+    // 리더보드 화면 (타이틀에서)
+    leaderboardTitleBtn.addEventListener('click', async () => {
+      await startTitleDrone();
+      playButtonSound();
+      leaderboardScreen.style.display = 'block';
+      leaderboardScreenContent.innerHTML = '<p style="color:rgba(255,255,255,0.5);">불러오는 중...</p>';
+      
+      const data = await fetchServerLeaderboard(10);
+      renderLeaderboardToElement(data, leaderboardScreenContent);
+    });
+
+    closeLeaderboardBtn.addEventListener('click', () => {
+      playButtonSound();
+      leaderboardScreen.style.display = 'none';
+    });
+
+    // 리더보드 렌더링 (타겟 element에)
+    function renderLeaderboardToElement(data, targetEl) {
+      targetEl.innerHTML = '';
+      const items = data?.items || [];
+      const medals = ['👑', '🥈', '🥉'];
+      
+      const ul = document.createElement('ul');
+      ul.style.cssText = 'padding-left:0;margin:0;list-style:none;';
+      
+      // 1~10위 표시
+      for (let i = 0; i < 10; i++) {
+        const rank = i + 1;
+        const item = items[i];
+        const li = document.createElement('li');
+        li.style.cssText = 'display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.1);';
+        
+        if (rank <= 3) {
+          li.style.fontWeight = 'bold';
+          if (rank === 1) li.style.color = '#ffd700';
+          else if (rank === 2) li.style.color = '#c0c0c0';
+          else if (rank === 3) li.style.color = '#cd7f32';
+        }
+        
+        if (item) {
+          const medal = rank <= 3 ? medals[rank - 1] + ' ' : '';
+          li.innerHTML = `<span>${rank}. ${medal}${item.name}</span><span>${item.score}</span>`;
+        } else {
+          li.innerHTML = `<span style="color:rgba(255,255,255,0.3)">${rank}. —</span><span style="color:rgba(255,255,255,0.3)">—</span>`;
+        }
+        
+        ul.appendChild(li);
+      }
+      
+      // 10위와 11위 사이 분리선
+      if (items.length > 10) {
+        const divider = document.createElement('li');
+        divider.style.cssText = 'border-bottom:2px dashed rgba(255,255,255,0.3); margin:10px 0; list-style:none;';
+        ul.appendChild(divider);
+        
+        // 11위 이후 표시
+        for (let i = 10; i < items.length; i++) {
+          const rank = i + 1;
+          const item = items[i];
+          const li = document.createElement('li');
+          li.style.cssText = 'display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.7);';
+          li.innerHTML = `<span>${rank}. ${item.name}</span><span>${item.score}</span>`;
+          ul.appendChild(li);
+        }
+      }
+      
+      targetEl.appendChild(ul);
+      
+      if (items.length === 0) {
+        targetEl.innerHTML = '<p style="color:rgba(255,255,255,0.5); text-align:center;">아직 기록이 없습니다</p>';
+      }
+    }
+
+    startBtn.addEventListener('click', async () => {
+      await startAudio();
+      playButtonSound();
+      isInfiniteMode = false;
+      startBlackholeDrone();
+      startCountdown();
+    });
+
+    infiniteModeBtn.addEventListener('click', async () => {
+      await startAudio();
+      playButtonSound();
+      isInfiniteMode = true;
+      startBlackholeDrone();
+      startCountdown();
+    });
+
+    function startCountdown() {
+      gameState = 'countdown';
+      titleScreen.style.display = 'none';
+      
+      // 블랙홀 드론 페이드아웃 (2초에 걸쳐)
+      stopBlackholeDrone();
+      
+      let count = 3;
+      countdownEl.style.display = 'block';
+      countdownEl.textContent = count;
+      playCountdownSound();
+
+      // 블랙홀 수축 효과 시작 (이스터에그 스타일)
+      const blackholeSuctionStart = performance.now();
+      const growDuration = 2500;   // 커지면서 떨림 2.5초
+      const collapseDuration = 500; // 수축 0.5초
+      const totalDuration = growDuration + collapseDuration;
+      let collapseSoundPlayed = false;
+
+      function animateSuction() {
+        const now = performance.now();
+        const elapsed = now - blackholeSuctionStart;
+        
+        if (elapsed < growDuration) {
+          // 블랙홀 커지면서 카메라 떨림 (2.5초)
+          const progress = elapsed / growDuration;
+          const easeProgress = Math.pow(progress, 3);
+          
+          // 블랙홀 점점 커짐
+          const scale = 1 + easeProgress * 0.3;
+          titleBlackholeGroup.scale.setScalar(scale);
+          
+          // 카메라 흔들림 (점점 강해짐)
+          const camShake = progress * 0.5;
+          camera.position.x = (Math.random() - 0.5) * camShake;
+          camera.position.y = 5 + (Math.random() - 0.5) * camShake;
+          
+          // 파티클 빨려들어감
+          const particles = titleBlackholeGroup.children.find(c => c.type === 'Points' && c.geometry.attributes.position.count === titleParticleCount);
+          if (particles) {
+            const positions = particles.geometry.attributes.position.array;
+            for (let i = 0; i < titleParticleCount; i++) {
+              titleParticleAngles[i] += 0.02 + easeProgress * 0.03;
+              titleParticleRadii[i] -= 0.02 + easeProgress * 0.05;
+              if (titleParticleRadii[i] < 5.5) {
+                titleParticleRadii[i] = 6 + Math.random() * 18;
+              }
+              positions[i * 3] = Math.cos(titleParticleAngles[i]) * titleParticleRadii[i];
+              positions[i * 3 + 1] = 0;
+              positions[i * 3 + 2] = Math.sin(titleParticleAngles[i]) * titleParticleRadii[i];
+            }
+            particles.geometry.attributes.position.needsUpdate = true;
+          }
+          
+          requestAnimationFrame(animateSuction);
+        } else if (elapsed < totalDuration) {
+          // 수축 (0.5초)
+          const collapseProgress = (elapsed - growDuration) / collapseDuration;
+          
+          // 수축 시작할 때 소리 (한번만)
+          if (!collapseSoundPlayed) {
+            collapseSoundPlayed = true;
+            playClearCollapseSound();
+          }
+          
+          // 카메라 계속 흔들림
+          const camShake = 0.5;
+          camera.position.x = (Math.random() - 0.5) * camShake;
+          camera.position.y = 5 + (Math.random() - 0.5) * camShake;
+          
+          // 블랙홀 급격히 수축 (1.3에서 시작)
+          const collapseScale = Math.max(0.001, 1.3 * Math.pow(1 - collapseProgress, 4));
+          titleBlackholeGroup.scale.setScalar(collapseScale);
+          
+          // 파티클 급격히 중심으로
+          const particles = titleBlackholeGroup.children.find(c => c.type === 'Points' && c.geometry.attributes.position.count === titleParticleCount);
+          if (particles) {
+            const positions = particles.geometry.attributes.position.array;
+            for (let i = 0; i < titleParticleCount; i++) {
+              titleParticleRadii[i] *= 0.85;
+              positions[i * 3] = Math.cos(titleParticleAngles[i]) * titleParticleRadii[i];
+              positions[i * 3 + 1] = 0;
+              positions[i * 3 + 2] = Math.sin(titleParticleAngles[i]) * titleParticleRadii[i];
+            }
+            particles.geometry.attributes.position.needsUpdate = true;
+          }
+          
+          // 배경색 전환 (우주 → 하늘) + 번쩍
+          let r = Math.floor(10 + (208 - 10) * collapseProgress);
+          let g = Math.floor(5 + (240 - 5) * collapseProgress);
+          let b = Math.floor(21 + (255 - 21) * collapseProgress);
+          
+          // 번쩍! (마지막에 밝아짐)
+          if (collapseProgress > 0.85) {
+            const flashIntensity = (collapseProgress - 0.85) / 0.15;
+            const c = Math.floor(flashIntensity * 255);
+            r = Math.min(255, r + c);
+            g = Math.min(255, g + c);
+            b = Math.min(255, b + c);
+          }
+          
+          scene.background = new THREE.Color(`rgb(${r},${g},${b})`);
+          
+          // 별 페이드아웃
+          starsMaterial.opacity = Math.max(0, 1 - collapseProgress * 2);
+          
+          requestAnimationFrame(animateSuction);
+        } else {
+          // 완료
+          titleBlackholeGroup.visible = false;
+          scene.background = new THREE.Color(0xd0f0ff);
+          camera.position.set(0, 5, 10);
+        }
+        
+        // 렌더링
+        renderer.render(scene, camera);
+      }
+      
+      animateSuction();
+
+      const countInterval = setInterval(() => {
+        count--;
+        if (count > 0) {
+          countdownEl.textContent = count;
+          countdownEl.style.animation = 'none';
+          countdownEl.offsetHeight; // reflow
+          countdownEl.style.animation = 'countPulse 1s ease-out';
+          playCountdownSound();
+        } else {
+          clearInterval(countInterval);
+          countdownEl.textContent = 'GO!';
+          countdownEl.style.animation = 'none';
+          countdownEl.offsetHeight;
+          countdownEl.style.animation = 'countPulse 1s ease-out';
+          playStartSound();
+
+          setTimeout(() => {
+            countdownEl.style.display = 'none';
+            startGame();
+          }, 500);
+        }
+      }, 1000);
+    }
+
+    function transitionToSky(progress) {
+      // 이제 animateSuction에서 처리하므로 빈 함수
+    }
+
+    function startGame() {
+      gameState = 'playing';
+      gameStartTime = Date.now();
+      isInvincible = false;
+
+      // UI 표시
+      scoreEl.style.display = 'block';
+      chargeBar.style.display = 'block';
+      pauseBtn.style.display = 'block';
+
+      // 타이틀 블랙홀 숨김
+      titleBlackholeGroup.visible = false;
+
+      // 구름 표시
+      cloudsGroup.visible = true;
+      
+      // 태양 표시
+      sunGroup.visible = true;
+
+      // 플레이어 표시
+      player.visible = true;
+      player.position.set(0, 0, 0);
+
+      // 발판 생성
+      createPlatform(0, -2, 'start');
+      for (let i = 0; i < 10; i++) {
+        const type = getRandomPlatformType();
+        createPlatform((Math.random() - 0.5) * 5, i * 3, type);
+      }
+
+      // Death plate 생성
+      createDeathPlate();
+    }
+
+    // ─────────────────────────────────────
+    // 저장 버튼 관련
+    // ─────────────────────────────────────
     function enableSaveButtonIfReady() {
       const hasName = !!(playerNameInput?.value.trim());
       if (submitScoreBtn) {
@@ -636,6 +2994,12 @@
       if (!result) {
         alert('서버 저장에 실패했습니다. 다시 시도해주세요.');
         return false;
+      }
+
+      // 치트 감지된 경우 치트 로그도 저장
+      if (cheatDetected) {
+        const playTimeSeconds = Math.floor((Date.now() - gameStartTime) / 1000);
+        await postCheatLog(name, score, playTimeSeconds);
       }
 
       hasSavedThisGame = true;
@@ -683,14 +3047,127 @@
           if (!saved) return;
         }
       }
-      window.location.reload();
+      // 게임 리셋하고 ready 상태로
+      resetGameForReplay();
     });
+
+    function resetGameForReplay() {
+      // 게임오버 화면 숨기기
+      gameOverScreen.style.display = 'none';
+      
+      // 게임 상태 초기화
+      gameState = 'ready';
+      hasSavedThisGame = false;
+      finalScoreValue = 0;
+      maxY = 0;
+      nextPlatformY = 30;
+      velocityY = 0;
+      isGrounded = false;
+      onPlatform = null;
+      chargeTime = 0;
+      isCharging = false;
+      chargeDirection = 1;
+      lastLandedPlatformId = null;
+      isInvincible = false;
+      
+      // 입력 상태 리셋
+      input.left = false;
+      input.right = false;
+      
+      // 점프 기록 리셋
+      jumpStartY = 0;
+      totalPositiveJumps = 0;
+      maxReachedHeight = 0;
+      jumpLogs = [];
+      jumpCount = 0;
+      cheatDetected = false;
+      
+      // 클리어 관련 리셋
+      isClearSequence = false;
+      clearTargetPos = null;
+      clearScreenX = 0;
+      clearScreenY = 0;
+      clearSoundPlayed = { pulse: false, collapse: false };
+      
+      // 기존 발판 제거
+      platforms.forEach(p => {
+        p.userData.label?.remove?.();
+        scene.remove(p);
+      });
+      platforms.length = 0;
+      platformIdCounter = 0;
+      
+      // 기존 Death Plate 제거
+      if (deathPlate) {
+        scene.remove(deathPlate);
+        deathPlate = null;
+      }
+      
+      // 카메라 리셋
+      camera.position.set(0, 5, 10);
+      
+      // 배경 리셋 (하늘색)
+      scene.background = new THREE.Color(0xd0f0ff);
+      starsMaterial.opacity = 0;
+      cloudsGroup.visible = true;
+      sunGroup.visible = true;
+      clouds.forEach(cloud => {
+        cloud.children.forEach(puff => {
+          // 각 puff의 기본 투명도 복원
+          const baseOpacity = 0.5 + Math.random() * 0.3;
+          puff.material.opacity = baseOpacity;
+          puff.userData = { lastCloudOpacity: 1 };
+        });
+      });
+      
+      // 플레이어 리셋
+      player.position.set(0, 0, 0);
+      player.visible = true;
+      
+      // 발판 생성
+      createPlatform(0, -2, 'start');
+      for (let i = 0; i < 10; i++) {
+        const type = getRandomPlatformType();
+        createPlatform((Math.random() - 0.5) * 5, i * 3, type);
+      }
+      
+      // Death plate 생성
+      createDeathPlate();
+      
+      // UI 표시
+      scoreEl.style.display = 'block';
+      scoreEl.innerText = 'Score: 0';
+      chargeBar.style.display = 'block';
+      chargeFill.style.width = '0%';
+      pauseBtn.style.display = 'none';
+      
+      // Ready 화면 표시
+      readyScreen.style.display = 'flex';
+    }
+
+    function startFromReady() {
+      if (gameState !== 'ready') return;
+      
+      readyScreen.style.display = 'none';
+      gameState = 'playing';
+      gameStartTime = Date.now();
+      pauseBtn.style.display = 'block';
+      playStartSound();
+    }
 
     // ─────────────────────────────────────
     // Touch controls
     // ─────────────────────────────────────
     const passiveFalse = { passive: false };
+    
     async function onTouchStart(e) {
+      if (gameState === 'ready') {
+        e.preventDefault();
+        await startAudio();
+        startFromReady();
+        return;
+      }
+      if (gameState !== 'playing') return;
       e.preventDefault();
       await startAudio();
       const t = e.touches[0]; touchActive = true; touchStartX = t.clientX; touchLastX = t.clientX; passedDeadzone = false;
@@ -702,29 +3179,40 @@
         touchMode = 'drag'; 
       }
     }
+    
     function onTouchMove(e) {
+      if (gameState !== 'playing') return;
       e.preventDefault(); if (!touchActive) return;
       const t = e.touches[0]; if (touchMode === 'drag') {
         if (!passedDeadzone && Math.abs(t.clientX - touchStartX) >= DEADZONE_PX) passedDeadzone = true;
-        if (passedDeadzone && !isGrounded) { const dx = t.clientX - touchLastX; player.position.x += dx * DRAG_GAIN; }
+        if (passedDeadzone && !isGrounded) { 
+          const dx = t.clientX - touchLastX; 
+          player.position.x += dx * DRAG_GAIN;
+          // X 범위 제한
+          player.position.x = Math.max(-7.5, Math.min(7.5, player.position.x));
+        }
         touchLastX = t.clientX;
       }
     }
+    
     function onTouchEnd(e) {
+      if (gameState !== 'playing') return;
       e.preventDefault();
       if (touchMode === 'charge' && isCharging) {
         stopChargeSound();
         if (isGrounded) {
           velocityY = Math.max(chargeTime, MIN_JUMP);
           isGrounded = false;
-          lastLandedPlatformId = null; // 점프하면 리셋
+          lastLandedPlatformId = null;
           playJumpSound();
+          startJumpRecord();
         }
         chargeTime = 0; isCharging = false; chargeDirection = 1;
         chargeFill.style.width = '0%';
       }
       touchActive = false; touchMode = null;
     }
+    
     renderer.domElement.addEventListener('touchstart', onTouchStart, passiveFalse);
     renderer.domElement.addEventListener('touchmove', onTouchMove, passiveFalse);
     renderer.domElement.addEventListener('touchend', onTouchEnd, passiveFalse);
@@ -736,44 +3224,240 @@
     const platforms = [];
     let platformIdCounter = 0;
     
+    // 색상 밝기 조절 헬퍼
+    function adjustColor(hex, factor) {
+      const r = Math.min(255, Math.floor(((hex >> 16) & 0xff) * factor));
+      const g = Math.min(255, Math.floor(((hex >> 8) & 0xff) * factor));
+      const b = Math.min(255, Math.floor((hex & 0xff) * factor));
+      return (r << 16) | (g << 8) | b;
+    }
+
     function createPlatform(x, y, type = 'normal') {
       let width, color, special = null;
       switch (type) {
-        case 'start': width = 10; color = 0x888888; break;
-        case 'narrow': width = 1.2; color = 0xff4444; break;
-        case 'bounce': width = 3; color = 0x4444ff; special = 'bounce'; break;
-        case 'vanish': width = 3; color = 0xffff00; special = 'vanish'; break;
-        case 'crumble': width = 3; color = 0xaa8866; special = 'crumble'; break;
-        case 'superBounce': width = 2; color = 0xff00ff; special = 'superBounce'; break;
-        default: width = 3; color = 0x00aa00;
+        case 'start': width = 15; color = 0x999999; break;
+        case 'narrow': width = 1.2; color = 0xff6666; break;
+        case 'bounce': width = 3; color = 0x6666ff; special = 'bounce'; break;
+        case 'vanish': width = 3; color = 0xffff44; special = 'vanish'; break;
+        case 'crumble': width = 3; color = 0xbb9977; special = 'crumble'; break;
+        case 'superBounce': width = 2; color = 0xff66ff; special = 'superBounce'; break;
+        case 'deadly': width = 2.5; color = 0x222222; special = 'deadly'; break;
+        default: width = 3; color = 0x44dd44;
       }
-      const mat = new THREE.MeshBasicMaterial({ color, transparent: false, opacity: 1 });
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, 0.5, 1), mat);
-      mesh.position.set(x, y, 0);
+      
+      // 면별 색상 계산
+      const topColor = adjustColor(color, 1.15);    // 윗면 밝게
+      const sideColor = color;                       // 옆면 기본
+      const bottomColor = adjustColor(color, 0.6);  // 아랫면 어둡게
+      const frontColor = adjustColor(color, 0.85);  // 앞면 약간 어둡게
+      
+      // 메인 그룹
+      const platformGroup = new THREE.Group();
+      platformGroup.position.set(x, y, 0);
+      
+      // 면별 색상 Materials (쨍한 BasicMaterial!)
+      const platformMaterials = [
+        new THREE.MeshBasicMaterial({ color: sideColor, transparent: true }),   // +X
+        new THREE.MeshBasicMaterial({ color: sideColor, transparent: true }),   // -X
+        new THREE.MeshBasicMaterial({ color: topColor, transparent: true }),    // +Y (윗면)
+        new THREE.MeshBasicMaterial({ color: bottomColor, transparent: true }), // -Y (아랫면)
+        new THREE.MeshBasicMaterial({ color: frontColor, transparent: true }),  // +Z (앞면)
+        new THREE.MeshBasicMaterial({ color: sideColor, transparent: true }),   // -Z
+      ];
+      
+      const platformMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(width, 0.5, 1),
+        platformMaterials
+      );
+      platformGroup.add(platformMesh);
+      
+      // 판정용 (기존 로직 호환)
+      const mesh = platformGroup;
+      mesh.geometry = { parameters: { width } };
+      mesh.material = platformMaterials[2]; // 윗면 색상 참조
 
-      // Crumble 발판: 금간 선 추가
+      // ═══════════════════════════════════════════════════════════
+      // Crumble 발판: 평소 먼지 + 착지 시 균열
+      // ═══════════════════════════════════════════════════════════
       if (type === 'crumble') {
-        const crackMaterial = new THREE.LineBasicMaterial({ color: 0x332211, linewidth: 2 });
-        const cracks = [
-          [[-1.2, 0.26, 0.4], [-0.3, 0.26, -0.3]],
-          [[-0.4, 0.26, 0.35], [0.5, 0.26, -0.25]],
-          [[0.3, 0.26, 0.4], [1.1, 0.26, -0.2]],
-          [[-0.8, 0.26, -0.1], [0.2, 0.26, 0.2]],
-          [[0, 0.26, -0.35], [0.7, 0.26, 0.15]],
-          [[-1.0, 0.26, 0.1], [-0.5, 0.26, -0.4]],
-          [[0.6, 0.26, -0.1], [1.2, 0.26, 0.3]]
-        ];
-        cracks.forEach(([start, end]) => {
-          const points = [new THREE.Vector3(...start), new THREE.Vector3(...end)];
-          const crackGeom = new THREE.BufferGeometry().setFromPoints(points);
-          const crackLine = new THREE.Line(crackGeom, crackMaterial);
-          mesh.add(crackLine);
+        // 먼지 파티클 시스템 (불규칙하게 떨어지는 먼지) - 대폭 강화
+        const dustCount = 60; // 더 많이!
+        const dustGeom = new THREE.BufferGeometry();
+        const dustPositions = new Float32Array(dustCount * 3);
+        const dustData = []; // 각 먼지의 상태
+        const dustWidth = width * 1.3; // 발판보다 30% 넓게
+        
+        for (let i = 0; i < dustCount; i++) {
+          // 가장자리에서 주로 생성
+          const edgeBias = Math.random() < 0.6; // 60%는 가장자리
+          let px;
+          if (edgeBias) {
+            // 가장자리 (발판 바깥까지 포함)
+            const side = Math.random() < 0.5 ? -1 : 1;
+            px = side * (dustWidth / 2 - Math.random() * 0.5);
+          } else {
+            // 랜덤
+            px = (Math.random() - 0.5) * dustWidth;
+          }
+          
+          const startY = 0.3 + Math.random() * 0.3;
+          dustPositions[i * 3] = px;
+          dustPositions[i * 3 + 1] = startY;
+          dustPositions[i * 3 + 2] = (Math.random() - 0.5) * 1.2;
+          
+          dustData.push({
+            baseX: px,
+            baseZ: dustPositions[i * 3 + 2],
+            fallSpeed: 0.8 + Math.random() * 1.2, // 더 빠르게
+            wobble: Math.random() * Math.PI * 2,
+            wobbleSpeed: 3 + Math.random() * 4,
+            wobbleAmount: 0.03 + Math.random() * 0.05, // 흔들림 크기
+            delay: Math.random() * 0.8, // 짧은 딜레이
+            active: false,
+            y: startY,
+            resetY: -1.5 - Math.random() * 1.5, // 더 아래까지 + 랜덤 위치에서 사라짐
+            size: 0.8 + Math.random() * 0.4, // 개별 크기 변화
+            dustWidth: dustWidth // 리셋용 저장
+          });
+        }
+        
+        dustGeom.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+        const dustMat = new THREE.PointsMaterial({
+          color: 0xaa9988,
+          size: 0.12, // 더 크게!
+          transparent: true,
+          opacity: 0.7
         });
+        const dust = new THREE.Points(dustGeom, dustMat);
+        platformGroup.add(dust);
+        
+        // 균열 라인들 (초기에는 숨김, 착지 시 표시)
+        const crackGroup = new THREE.Group();
+        crackGroup.visible = false;
+        
+        // 균열 데이터 (중앙에서 뻗어나가는 4갈래, 발판 끝까지)
+        const crackLines = [];
+        const crackCount = 4;
+        const halfWidth = width / 2;
+        const halfDepth = 0.5;
+        
+        for (let i = 0; i < crackCount; i++) {
+          const angle = (i / crackCount) * Math.PI * 2 + Math.PI / 8 + (Math.random() - 0.5) * 0.5;
+          
+          // 각도에 따라 발판 경계까지의 최대 길이 계산
+          const cosA = Math.cos(angle);
+          const sinA = Math.sin(angle);
+          let maxLength = 10; // 큰 값으로 시작
+          
+          // X 경계 체크
+          if (Math.abs(cosA) > 0.01) {
+            const xLimit = halfWidth / Math.abs(cosA);
+            maxLength = Math.min(maxLength, xLimit);
+          }
+          // Z 경계 체크
+          if (Math.abs(sinA) > 0.01) {
+            const zLimit = halfDepth / Math.abs(sinA * 0.3); // Z는 0.3 스케일
+            maxLength = Math.min(maxLength, zLimit);
+          }
+          
+          const length = maxLength * (0.85 + Math.random() * 0.15); // 경계의 85~100%
+          
+          // 메인 균열
+          const points = [
+            new THREE.Vector3(0, 0.26, 0),
+            new THREE.Vector3(
+              cosA * length * 0.4,
+              0.26,
+              sinA * length * 0.2
+            ),
+            new THREE.Vector3(
+              cosA * length,
+              0.26,
+              sinA * length * 0.3
+            )
+          ];
+          
+          const crackGeom = new THREE.BufferGeometry().setFromPoints(points);
+          const crackMat = new THREE.LineBasicMaterial({
+            color: 0x332211,
+            transparent: true,
+            opacity: 0,
+            linewidth: 2
+          });
+          const crackLine = new THREE.Line(crackGeom, crackMat);
+          crackLines.push({
+            line: crackLine,
+            targetOpacity: 0.9,
+            length: length,
+            points: points
+          });
+          crackGroup.add(crackLine);
+          
+          // 분기 균열 (50% 확률)
+          if (Math.random() < 0.5) {
+            const branchAngle = angle + (Math.random() - 0.5) * 1.2;
+            const branchLength = length * 0.3;
+            const branchStart = points[1].clone();
+            
+            // 분기도 경계 체크
+            let branchEndX = branchStart.x + Math.cos(branchAngle) * branchLength;
+            let branchEndZ = branchStart.z + Math.sin(branchAngle) * branchLength * 0.3;
+            branchEndX = Math.max(-halfWidth, Math.min(halfWidth, branchEndX));
+            branchEndZ = Math.max(-halfDepth, Math.min(halfDepth, branchEndZ));
+            
+            const branchPoints = [
+              branchStart,
+              new THREE.Vector3(branchEndX, 0.26, branchEndZ)
+            ];
+            
+            const branchGeom = new THREE.BufferGeometry().setFromPoints(branchPoints);
+            const branchMat = new THREE.LineBasicMaterial({
+              color: 0x443322,
+              transparent: true,
+              opacity: 0
+            });
+            const branchLine = new THREE.Line(branchGeom, branchMat);
+            crackLines.push({
+              line: branchLine,
+              targetOpacity: 0.7,
+              length: branchLength,
+              points: branchPoints,
+              isBranch: true
+            });
+            crackGroup.add(branchLine);
+          }
+        }
+        
+        platformGroup.add(crackGroup);
+        
+        // 충격 이펙트 (착지 시 중앙에서 퍼지는 링)
+        const impactRing = new THREE.Mesh(
+          new THREE.RingGeometry(0, 0.1, 16),
+          new THREE.MeshBasicMaterial({
+            color: 0xffaa44,
+            transparent: true,
+            opacity: 0,
+            side: THREE.DoubleSide
+          })
+        );
+        impactRing.rotation.x = -Math.PI / 2;
+        impactRing.position.y = 0.27;
+        platformGroup.add(impactRing);
+        
+        // userData에 저장
+        platformGroup.userData.dust = dust;
+        platformGroup.userData.dustData = dustData;
+        platformGroup.userData.crackGroup = crackGroup;
+        platformGroup.userData.crackLines = crackLines;
+        platformGroup.userData.impactRing = impactRing;
+        platformGroup.userData.crackStartTime = null;
+        platformGroup.userData.crackProgress = 0;
+        platformGroup.userData.dustBurst = false;
+        platformGroup.userData.dustBurstTime = null;
       }
 
-      // Bounce 발판: 약한 글로우 효과 추가
+      // Bounce 발판: 글로우 + 화살표 아이콘
       if (type === 'bounce') {
-        // 약한 내부 글로우
         const bounceGlow = new THREE.Mesh(
           new THREE.RingGeometry(1.0, 1.5, 32),
           new THREE.MeshBasicMaterial({
@@ -785,13 +3469,29 @@
         );
         bounceGlow.rotation.x = -Math.PI / 2;
         bounceGlow.position.y = 0.28;
-        mesh.add(bounceGlow);
-        mesh.userData.bounceGlow = bounceGlow;
+        platformGroup.add(bounceGlow);
+        platformGroup.userData.bounceGlow = bounceGlow;
+        
+        // 위 화살표 아이콘 ↑ (발판 앞에 세워서 표시)
+        const arrowShape = new THREE.Shape();
+        arrowShape.moveTo(0, 0.35);
+        arrowShape.lineTo(-0.18, 0.05);
+        arrowShape.lineTo(-0.07, 0.05);
+        arrowShape.lineTo(-0.07, -0.2);
+        arrowShape.lineTo(0.07, -0.2);
+        arrowShape.lineTo(0.07, 0.05);
+        arrowShape.lineTo(0.18, 0.05);
+        arrowShape.lineTo(0, 0.35);
+        const arrowGeom = new THREE.ShapeGeometry(arrowShape);
+        const arrowMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+        const arrowIcon = new THREE.Mesh(arrowGeom, arrowMat);
+        arrowIcon.position.set(0, 0.25, 0.55);
+        arrowIcon.scale.setScalar(0.7);
+        platformGroup.add(arrowIcon);
       }
 
-      // SuperBounce 발판: 빛나는 글로우 링 추가
+      // SuperBounce 발판: 글로우 + 이중 화살표 아이콘
       if (type === 'superBounce') {
-        // 내부 글로우
         const innerGlow = new THREE.Mesh(
           new THREE.RingGeometry(0.8, 1.2, 32),
           new THREE.MeshBasicMaterial({
@@ -803,10 +3503,9 @@
         );
         innerGlow.rotation.x = -Math.PI / 2;
         innerGlow.position.y = 0.3;
-        mesh.add(innerGlow);
-        mesh.userData.innerGlow = innerGlow;
+        platformGroup.add(innerGlow);
+        platformGroup.userData.innerGlow = innerGlow;
 
-        // 외부 글로우
         const outerGlow = new THREE.Mesh(
           new THREE.RingGeometry(1.3, 1.8, 32),
           new THREE.MeshBasicMaterial({
@@ -818,10 +3517,9 @@
         );
         outerGlow.rotation.x = -Math.PI / 2;
         outerGlow.position.y = 0.35;
-        mesh.add(outerGlow);
-        mesh.userData.outerGlow = outerGlow;
+        platformGroup.add(outerGlow);
+        platformGroup.userData.outerGlow = outerGlow;
 
-        // 파티클 효과 (작은 빛 점들)
         const sparkleGeom = new THREE.BufferGeometry();
         const sparkleCount = 8;
         const sparklePositions = new Float32Array(sparkleCount * 3);
@@ -839,146 +3537,438 @@
           opacity: 0.8
         });
         const sparkles = new THREE.Points(sparkleGeom, sparkleMat);
-        mesh.add(sparkles);
-        mesh.userData.sparkles = sparkles;
+        platformGroup.add(sparkles);
+        platformGroup.userData.sparkles = sparkles;
+        
+        // 이중 화살표 아이콘 ⬆⬆ (발판 앞에 세워서 표시)
+        const dblArrowGroup = new THREE.Group();
+        
+        // 첫번째 화살표 (위)
+        const arrow1Shape = new THREE.Shape();
+        arrow1Shape.moveTo(0, 0.22);
+        arrow1Shape.lineTo(-0.15, 0);
+        arrow1Shape.lineTo(0.15, 0);
+        arrow1Shape.lineTo(0, 0.22);
+        const arrow1Geom = new THREE.ShapeGeometry(arrow1Shape);
+        const arrow1Mat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+        const arrow1 = new THREE.Mesh(arrow1Geom, arrow1Mat);
+        arrow1.position.y = 0.15;
+        dblArrowGroup.add(arrow1);
+        
+        // 두번째 화살표 (아래)
+        const arrow2 = new THREE.Mesh(arrow1Geom.clone(), arrow1Mat);
+        arrow2.position.y = -0.1;
+        dblArrowGroup.add(arrow2);
+        
+        dblArrowGroup.position.set(0, 0.25, 0.55);
+        dblArrowGroup.scale.setScalar(0.7);
+        platformGroup.add(dblArrowGroup);
+      }
+
+      // Deadly 발판: 데스 플레이트와 동일한 디자인
+      if (type === 'deadly') {
+        // 붉은 글로우 레이어 1 (강한 빛)
+        const deadlyGlow1 = new THREE.Mesh(
+          new THREE.BoxGeometry(width, 0.1, 1.5),
+          new THREE.MeshBasicMaterial({
+            color: 0xff0000,
+            transparent: true,
+            opacity: 0.6
+          })
+        );
+        deadlyGlow1.position.y = 0.3;
+        platformGroup.add(deadlyGlow1);
+        platformGroup.userData.deadlyGlow1 = deadlyGlow1;
+
+        // 붉은 글로우 레이어 2 (중간 빛)
+        const deadlyGlow2 = new THREE.Mesh(
+          new THREE.BoxGeometry(width + 0.3, 0.05, 2),
+          new THREE.MeshBasicMaterial({
+            color: 0xff3300,
+            transparent: true,
+            opacity: 0.4
+          })
+        );
+        deadlyGlow2.position.y = 0.4;
+        platformGroup.add(deadlyGlow2);
+        platformGroup.userData.deadlyGlow2 = deadlyGlow2;
+
+        // 붉은 글로우 레이어 3 (약한 빛, 넓은 범위)
+        const deadlyGlow3 = new THREE.Mesh(
+          new THREE.BoxGeometry(width + 0.6, 0.03, 2.5),
+          new THREE.MeshBasicMaterial({
+            color: 0xff2200,
+            transparent: true,
+            opacity: 0.2
+          })
+        );
+        deadlyGlow3.position.y = 0.5;
+        platformGroup.add(deadlyGlow3);
+        platformGroup.userData.deadlyGlow3 = deadlyGlow3;
+
+        // 불꽃 파티클
+        const fireCount = 15;
+        const fireGeom = new THREE.BufferGeometry();
+        const firePositions = new Float32Array(fireCount * 3);
+        const fireVelocities = [];
+        
+        for (let i = 0; i < fireCount; i++) {
+          firePositions[i * 3] = (Math.random() - 0.5) * width;
+          firePositions[i * 3 + 1] = Math.random() * 0.5;
+          firePositions[i * 3 + 2] = (Math.random() - 0.5) * 0.8;
+          fireVelocities.push(0.5 + Math.random() * 1);
+        }
+        
+        fireGeom.setAttribute('position', new THREE.BufferAttribute(firePositions, 3));
+        const fireMat = new THREE.PointsMaterial({
+          color: 0xff4400,
+          size: 0.15,
+          transparent: true,
+          opacity: 0.7
+        });
+        const fireParticles = new THREE.Points(fireGeom, fireMat);
+        platformGroup.add(fireParticles);
+        platformGroup.userData.fireParticles = fireParticles;
+        platformGroup.userData.fireVelocities = fireVelocities;
       }
 
       const label = document.createElement('span');
       label.className = 'platform-label';
       platformLabelsContainer.appendChild(label);
 
-      // 고유 ID 부여
       const platformId = platformIdCounter++;
 
-      mesh.userData = {
-        ...mesh.userData,
+      platformGroup.userData = {
+        ...platformGroup.userData,
         id: platformId,
         type, special, originalX: x,
         amplitude: type === 'start' ? 0 : 2 + Math.random(),
         speed: type === 'start' ? 0 : 1 + Math.random(),
         phase: Math.random() * Math.PI * 2,
-        prevX: x, deltaX: 0, label, vanishStarted: false, falling: false
+        prevX: x, deltaX: 0, label, vanishStarted: false, falling: false,
+        platformMesh: platformMesh
       };
-      scene.add(mesh); platforms.push(mesh);
-    }
-
-    createPlatform(0, -2, 'start');
-    for (let i = 0; i < 10; i++) {
-      const type = PLATFORM_TYPE_POOL[Math.floor(Math.random() * PLATFORM_TYPE_POOL.length)];
-      createPlatform((Math.random() - 0.5) * 5, i * 3, type);
+      scene.add(platformGroup); platforms.push(platformGroup);
     }
 
     // ─────────────────────────────────────
-    // Death plate (붉은 글로우 추가)
+    // 착지 파티클 시스템
     // ─────────────────────────────────────
-    const deathPlate = new THREE.Mesh(
-      new THREE.BoxGeometry(400, 0.5, 2),
-      new THREE.MeshBasicMaterial({ color: 0x000000 })
-    );
-    deathPlate.position.set(0, -10, 0);
-    scene.add(deathPlate);
+    const landingParticles = [];
+    
+    function createLandingParticles(x, y, color) {
+      const particleCount = 12;
+      const particles = [];
+      
+      for (let i = 0; i < particleCount; i++) {
+        const angle = (i / particleCount) * Math.PI * 2 + Math.random() * 0.3;
+        const speed = 0.08 + Math.random() * 0.08;
+        
+        const particle = new THREE.Mesh(
+          new THREE.SphereGeometry(0.08, 8, 8),
+          new THREE.MeshBasicMaterial({
+            color: color,
+            transparent: true,
+            opacity: 1
+          })
+        );
+        
+        particle.position.set(x, y + 0.3, 0);
+        particle.userData = {
+          vx: Math.cos(angle) * speed,
+          vy: 0.1 + Math.random() * 0.05,
+          vz: Math.sin(angle) * speed * 0.3,
+          life: 1.0
+        };
+        
+        scene.add(particle);
+        particles.push(particle);
+      }
+      
+      landingParticles.push(...particles);
+    }
+    
+    function updateLandingParticles() {
+      for (let i = landingParticles.length - 1; i >= 0; i--) {
+        const p = landingParticles[i];
+        
+        // 위치 업데이트
+        p.position.x += p.userData.vx;
+        p.position.y += p.userData.vy;
+        p.position.z += p.userData.vz;
+        
+        // 중력
+        p.userData.vy -= 0.008;
+        
+        // 수명 감소
+        p.userData.life -= 0.03;
+        p.material.opacity = p.userData.life;
+        p.scale.setScalar(p.userData.life);
+        
+        // 제거
+        if (p.userData.life <= 0) {
+          scene.remove(p);
+          landingParticles.splice(i, 1);
+        }
+      }
+    }
 
-    // 붉은 글로우 레이어 1 (강한 빛)
-    const deathGlow1 = new THREE.Mesh(
-      new THREE.BoxGeometry(400, 0.1, 3),
-      new THREE.MeshBasicMaterial({
-        color: 0xff0000,
-        transparent: true,
-        opacity: 0.6
-      })
-    );
-    deathGlow1.position.y = 0.3;
-    deathPlate.add(deathGlow1);
+    // ─────────────────────────────────────
+    // 크럼블 부서지는 파편 시스템
+    // ─────────────────────────────────────
+    const crumbleDebris = [];
+    
+    function createCrumbleDebris(platform) {
+      const debrisCount = 15;
+      const px = platform.position.x;
+      const py = platform.position.y;
+      const width = platform.geometry.parameters.width;
+      
+      for (let i = 0; i < debrisCount; i++) {
+        // 발판 위에서 랜덤 위치
+        const offsetX = (Math.random() - 0.5) * width;
+        const offsetZ = (Math.random() - 0.5) * 0.8;
+        
+        // 작은 조각 (0.1~0.2 크기)
+        const size = 0.1 + Math.random() * 0.1;
+        const debris = new THREE.Mesh(
+          new THREE.BoxGeometry(size, size, size),
+          new THREE.MeshBasicMaterial({
+            color: 0xaa8866,
+            transparent: true,
+            opacity: 1
+          })
+        );
+        
+        debris.position.set(px + offsetX, py + 0.3, offsetZ);
+        
+        // 랜덤 속도
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 0.05 + Math.random() * 0.1;
+        
+        debris.userData = {
+          vx: Math.cos(angle) * speed,
+          vy: 0.15 + Math.random() * 0.1, // 위로 튀어오름
+          vz: Math.sin(angle) * speed * 0.5,
+          rotationSpeed: {
+            x: (Math.random() - 0.5) * 0.2,
+            y: (Math.random() - 0.5) * 0.2,
+            z: (Math.random() - 0.5) * 0.2
+          },
+          life: 1.0
+        };
+        
+        scene.add(debris);
+        crumbleDebris.push(debris);
+      }
+    }
+    
+    function updateCrumbleDebris() {
+      for (let i = crumbleDebris.length - 1; i >= 0; i--) {
+        const d = crumbleDebris[i];
+        
+        // 위치 업데이트
+        d.position.x += d.userData.vx;
+        d.position.y += d.userData.vy;
+        d.position.z += d.userData.vz;
+        
+        // 회전 (tumbling)
+        d.rotation.x += d.userData.rotationSpeed.x;
+        d.rotation.y += d.userData.rotationSpeed.y;
+        d.rotation.z += d.userData.rotationSpeed.z;
+        
+        // 중력
+        d.userData.vy -= 0.01;
+        
+        // 수명 감소
+        d.userData.life -= 0.02;
+        d.material.opacity = d.userData.life;
+        
+        // 제거
+        if (d.userData.life <= 0) {
+          scene.remove(d);
+          crumbleDebris.splice(i, 1);
+        }
+      }
+    }
 
-    // 붉은 글로우 레이어 2 (중간 빛)
-    const deathGlow2 = new THREE.Mesh(
-      new THREE.BoxGeometry(400, 0.05, 5),
-      new THREE.MeshBasicMaterial({
-        color: 0xff3300,
-        transparent: true,
-        opacity: 0.4
-      })
-    );
-    deathGlow2.position.y = 0.5;
-    deathPlate.add(deathGlow2);
-
-    // 붉은 글로우 레이어 3 (약한 빛, 넓은 범위)
-    const deathGlow3 = new THREE.Mesh(
-      new THREE.BoxGeometry(400, 0.03, 8),
-      new THREE.MeshBasicMaterial({
-        color: 0xff2200,
-        transparent: true,
-        opacity: 0.2
-      })
-    );
-    deathGlow3.position.y = 0.7;
-    deathPlate.add(deathGlow3);
-
-    // 파티클 효과 (떠오르는 불꽃)
+    // ─────────────────────────────────────
+    // Death plate
+    // ─────────────────────────────────────
+    let deathPlate, deathGlow1, deathGlow2, deathGlow3, fireParticles, fireParticleVelocities;
     const fireParticleCount = 50;
-    const fireParticleGeom = new THREE.BufferGeometry();
-    const fireParticlePositions = new Float32Array(fireParticleCount * 3);
-    const fireParticleVelocities = new Float32Array(fireParticleCount);
 
-    for (let i = 0; i < fireParticleCount; i++) {
-      fireParticlePositions[i * 3] = (Math.random() - 0.5) * 20;
-      fireParticlePositions[i * 3 + 1] = Math.random() * 2;
-      fireParticlePositions[i * 3 + 2] = (Math.random() - 0.5) * 2;
-      fireParticleVelocities[i] = 0.5 + Math.random() * 1.5;
+    function createDeathPlate() {
+      deathPlate = new THREE.Mesh(
+        new THREE.BoxGeometry(400, 0.5, 2),
+        new THREE.MeshBasicMaterial({ color: 0x000000 })
+      );
+      deathPlate.position.set(0, -15, 0); // 더 아래에서 시작
+      scene.add(deathPlate);
+
+      deathGlow1 = new THREE.Mesh(
+        new THREE.BoxGeometry(400, 0.1, 3),
+        new THREE.MeshBasicMaterial({
+          color: 0xff0000,
+          transparent: true,
+          opacity: 0.6
+        })
+      );
+      deathGlow1.position.y = 0.3;
+      deathPlate.add(deathGlow1);
+
+      deathGlow2 = new THREE.Mesh(
+        new THREE.BoxGeometry(400, 0.05, 5),
+        new THREE.MeshBasicMaterial({
+          color: 0xff3300,
+          transparent: true,
+          opacity: 0.4
+        })
+      );
+      deathGlow2.position.y = 0.5;
+      deathPlate.add(deathGlow2);
+
+      deathGlow3 = new THREE.Mesh(
+        new THREE.BoxGeometry(400, 0.03, 8),
+        new THREE.MeshBasicMaterial({
+          color: 0xff2200,
+          transparent: true,
+          opacity: 0.2
+        })
+      );
+      deathGlow3.position.y = 0.7;
+      deathPlate.add(deathGlow3);
+
+      const fireParticleGeom = new THREE.BufferGeometry();
+      const fireParticlePositions = new Float32Array(fireParticleCount * 3);
+      fireParticleVelocities = new Float32Array(fireParticleCount);
+
+      for (let i = 0; i < fireParticleCount; i++) {
+        fireParticlePositions[i * 3] = (Math.random() - 0.5) * 20;
+        fireParticlePositions[i * 3 + 1] = Math.random() * 2;
+        fireParticlePositions[i * 3 + 2] = (Math.random() - 0.5) * 2;
+        fireParticleVelocities[i] = 0.5 + Math.random() * 1.5;
+      }
+      fireParticleGeom.setAttribute('position', new THREE.BufferAttribute(fireParticlePositions, 3));
+      const fireParticleMat = new THREE.PointsMaterial({
+        color: 0xff4400,
+        size: 0.3,
+        transparent: true,
+        opacity: 0.7
+      });
+      fireParticles = new THREE.Points(fireParticleGeom, fireParticleMat);
+      deathPlate.add(fireParticles);
     }
-    fireParticleGeom.setAttribute('position', new THREE.BufferAttribute(fireParticlePositions, 3));
-    const fireParticleMat = new THREE.PointsMaterial({
-      color: 0xff4400,
-      size: 0.3,
-      transparent: true,
-      opacity: 0.7
-    });
-    const fireParticles = new THREE.Points(fireParticleGeom, fireParticleMat);
-    deathPlate.add(fireParticles);
 
     let maxY = 0;
     let nextPlatformY = 30;
 
-    // Loop
+    // ─────────────────────────────────────
+    // Main loop
+    // ─────────────────────────────────────
     function animate() {
       animationId = requestAnimationFrame(animate);
       const delta = clock.getDelta();
       const elapsed = clock.getElapsedTime();
 
-      if (Date.now() - startTime > 3000) isInvincible = false;
+      // 타이틀 화면
+      if (gameState === 'title' || gameState === 'countdown') {
+        // 타이틀일 때만 블랙홀 기본 애니메이션 (카운트다운 중에는 animateSuction이 처리)
+        if (gameState === 'title') {
+          updateTitleBlackhole(elapsed);
+        }
+        
+        // 별 반짝임
+        starsMaterial.size = 0.5 + Math.sin(elapsed * 2) * 0.1;
+        
+        renderer.render(scene, camera);
+        return;
+      }
 
-      // 배경 업데이트
+      // Ready 상태 (재시작 대기)
+      if (gameState === 'ready') {
+        // 발판 애니메이션은 계속
+        platforms.forEach(p => {
+          if (p.userData.type !== 'start') {
+            const dx = p.userData.amplitude * Math.sin(elapsed * p.userData.speed + p.userData.phase);
+            p.position.x = p.userData.originalX + dx;
+          }
+        });
+        renderer.render(scene, camera);
+        return;
+      }
+
+      // 일시정지
+      if (gameState === 'paused') {
+        renderer.render(scene, camera);
+        return;
+      }
+
+      // 게임오버
+      if (gameState === 'gameover') {
+        renderer.render(scene, camera);
+        return;
+      }
+      
+      // 게임 클리어
+      if (gameState === 'clear') {
+        renderer.render(scene, camera);
+        return;
+      }
+
+      // ─────────────────────────────────────
+      // 게임 플레이 중
+      // ─────────────────────────────────────
+
+
       updateBackground(maxY, elapsed);
+      
+      // 태양 업데이트
+      updateSun(maxY, elapsed);
+      
+      // 달 업데이트
+      updateMoon(maxY, elapsed);
+      
+      // 착지 파티클 업데이트
+      updateLandingParticles();
+      
+      // 크럼블 파편 업데이트
+      updateCrumbleDebris();
 
       // Death plate 글로우 애니메이션
-      deathGlow1.material.opacity = 0.4 + Math.sin(elapsed * 4) * 0.3;
-      deathGlow2.material.opacity = 0.25 + Math.sin(elapsed * 3 + 1) * 0.2;
-      deathGlow3.material.opacity = 0.15 + Math.sin(elapsed * 2.5 + 2) * 0.1;
+      if (deathGlow1) {
+        deathGlow1.material.opacity = 0.4 + Math.sin(elapsed * 4) * 0.3;
+        deathGlow2.material.opacity = 0.25 + Math.sin(elapsed * 3 + 1) * 0.2;
+        deathGlow3.material.opacity = 0.15 + Math.sin(elapsed * 2.5 + 2) * 0.1;
 
-      // 불꽃 파티클 애니메이션
-      const firePositions = fireParticles.geometry.attributes.position.array;
-      for (let i = 0; i < fireParticleCount; i++) {
-        firePositions[i * 3 + 1] += fireParticleVelocities[i] * delta;
-        if (firePositions[i * 3 + 1] > 3) {
-          firePositions[i * 3 + 1] = 0;
-          firePositions[i * 3] = (Math.random() - 0.5) * 20;
+        const firePositions = fireParticles.geometry.attributes.position.array;
+        for (let i = 0; i < fireParticleCount; i++) {
+          firePositions[i * 3 + 1] += fireParticleVelocities[i] * delta;
+          if (firePositions[i * 3 + 1] > 3) {
+            firePositions[i * 3 + 1] = 0;
+            firePositions[i * 3] = (Math.random() - 0.5) * 20;
+          }
         }
+        fireParticles.geometry.attributes.position.needsUpdate = true;
+        fireParticles.material.opacity = 0.5 + Math.sin(elapsed * 6) * 0.3;
       }
-      fireParticles.geometry.attributes.position.needsUpdate = true;
-      fireParticleMat.opacity = 0.5 + Math.sin(elapsed * 6) * 0.3;
 
       platforms.forEach(p => {
         p.userData.prevX = p.position.x;
-        if (p.userData.type !== 'start' && !p.userData.falling) {
+        if (p.userData.type !== 'start' && !p.userData.falling && !isClearSequence) {
           const dx = p.userData.amplitude * Math.sin(elapsed * p.userData.speed + p.userData.phase);
           p.position.x = p.userData.originalX + dx;
         }
         p.userData.deltaX = p.position.x - p.userData.prevX;
 
-        if (p.userData.falling) {
+        if (p.userData.falling && !isClearSequence) {
           p.position.y -= delta * 50;
-          p.material.opacity = Math.max(0, p.material.opacity - delta * 1);
-          p.material.transparent = true;
+          // 발판 모든 면 투명도 조절
+          if (p.userData.platformMesh && Array.isArray(p.userData.platformMesh.material)) {
+            p.userData.platformMesh.material.forEach(mat => {
+              mat.opacity = Math.max(0, mat.opacity - delta * 1);
+            });
+          }
         }
 
         // SuperBounce 글로우 애니메이션
@@ -996,10 +3986,168 @@
           p.userData.sparkles.rotation.y = elapsed * 3;
         }
 
-        // Bounce 글로우 애니메이션 (약하게)
+        // Bounce 글로우 애니메이션
         if (p.userData.bounceGlow) {
           p.userData.bounceGlow.material.opacity = 0.2 + Math.sin(elapsed * 3) * 0.15;
           p.userData.bounceGlow.scale.setScalar(1 + Math.sin(elapsed * 2) * 0.05);
+        }
+
+        // Deadly 발판 글로우 + 불꽃 애니메이션
+        if (p.userData.deadlyGlow1) {
+          p.userData.deadlyGlow1.material.opacity = 0.4 + Math.sin(elapsed * 4) * 0.3;
+        }
+        if (p.userData.deadlyGlow2) {
+          p.userData.deadlyGlow2.material.opacity = 0.25 + Math.sin(elapsed * 3 + 1) * 0.2;
+        }
+        if (p.userData.deadlyGlow3) {
+          p.userData.deadlyGlow3.material.opacity = 0.15 + Math.sin(elapsed * 2.5 + 2) * 0.1;
+        }
+        if (p.userData.fireParticles) {
+          const positions = p.userData.fireParticles.geometry.attributes.position.array;
+          const velocities = p.userData.fireVelocities;
+          for (let i = 0; i < velocities.length; i++) {
+            positions[i * 3 + 1] += velocities[i] * delta;
+            if (positions[i * 3 + 1] > 1) {
+              positions[i * 3 + 1] = 0;
+              positions[i * 3] = (Math.random() - 0.5) * 2.5;
+            }
+          }
+          p.userData.fireParticles.geometry.attributes.position.needsUpdate = true;
+          p.userData.fireParticles.material.opacity = 0.5 + Math.sin(elapsed * 6) * 0.3;
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // Crumble 발판 애니메이션
+        // ═══════════════════════════════════════════════════════════
+        if (p.userData.type === 'crumble' && p.userData.dust) {
+          const dustData = p.userData.dustData;
+          const positions = p.userData.dust.geometry.attributes.position.array;
+          
+          // 착지 버스트 처리
+          if (p.userData.dustBurst) {
+            p.userData.dustBurst = false;
+            // 모든 먼지를 즉시 활성화하고 위로 튀어오르게
+            for (let i = 0; i < dustData.length; i++) {
+              const d = dustData[i];
+              d.delay = 0;
+              d.active = true;
+              d.y = 0.3 + Math.random() * 0.5; // 위에서 시작
+              d.fallSpeed = 1.5 + Math.random() * 2.0; // 빠르게
+              // 새 위치로 흩뿌리기 (더 넓게)
+              const burstWidth = d.dustWidth * 1.2;
+              d.baseX = (Math.random() - 0.5) * burstWidth;
+              d.baseZ = (Math.random() - 0.5) * 1.5;
+              d.resetY = -2.0 - Math.random() * 2.0; // 더 아래까지
+            }
+            // 먼지 크기와 투명도 일시적 증가
+            p.userData.dust.material.size = 0.18;
+            p.userData.dust.material.opacity = 0.9;
+            p.userData.dustBurstTime = elapsed;
+          }
+          
+          // 버스트 후 서서히 원래대로
+          if (p.userData.dustBurstTime) {
+            const burstElapsed = elapsed - p.userData.dustBurstTime;
+            if (burstElapsed < 0.5) {
+              p.userData.dust.material.size = 0.18 - burstElapsed * 0.12;
+              p.userData.dust.material.opacity = 0.9 - burstElapsed * 0.4;
+            } else {
+              p.userData.dust.material.size = 0.12;
+              p.userData.dust.material.opacity = 0.7;
+            }
+          }
+          
+          // 평소 먼지 애니메이션 (불규칙하게 떨어짐)
+          for (let i = 0; i < dustData.length; i++) {
+            const d = dustData[i];
+            
+            // 딜레이 체크
+            d.delay -= delta;
+            if (d.delay > 0) continue;
+            
+            d.active = true;
+            
+            // Y 위치 업데이트 (떨어짐)
+            const fallMultiplier = p.userData.crackStartTime ? 2.5 : 1; // 균열 후 빨라짐
+            d.y -= delta * d.fallSpeed * fallMultiplier;
+            
+            // X, Z 흔들림 (더 크게)
+            const wobbleX = Math.sin(elapsed * d.wobbleSpeed + d.wobble) * d.wobbleAmount;
+            const wobbleZ = Math.cos(elapsed * d.wobbleSpeed * 0.7 + d.wobble) * d.wobbleAmount * 0.7;
+            
+            positions[i * 3] = d.baseX + wobbleX;
+            positions[i * 3 + 1] = d.y;
+            positions[i * 3 + 2] = d.baseZ + wobbleZ;
+            
+            // 리셋 (랜덤 위치에서 사라짐)
+            if (d.y < d.resetY) {
+              // 새 시작 위치 (발판보다 넓은 영역)
+              const dustWidth = d.dustWidth;
+              const edgeBias = Math.random() < 0.6;
+              if (edgeBias) {
+                const side = Math.random() < 0.5 ? -1 : 1;
+                d.baseX = side * (dustWidth / 2 - Math.random() * 0.5);
+              } else {
+                d.baseX = (Math.random() - 0.5) * dustWidth;
+              }
+              d.baseZ = (Math.random() - 0.5) * 1.2;
+              d.y = 0.3 + Math.random() * 0.3;
+              d.delay = Math.random() * (p.userData.crackStartTime ? 0.15 : 0.5); // 더 빈번하게
+              d.fallSpeed = 0.8 + Math.random() * 1.2;
+              d.resetY = -1.5 - Math.random() * 1.5; // 새 랜덤 사라짐 위치
+            }
+          }
+          
+          p.userData.dust.geometry.attributes.position.needsUpdate = true;
+          
+          // 균열 애니메이션 (착지 후)
+          if (p.userData.crackStartTime !== null) {
+            const crackElapsed = elapsed - p.userData.crackStartTime;
+            const crackDuration = 0.25; // 균열 확산 시간
+            
+            // 균열 진행도
+            p.userData.crackProgress = Math.min(crackElapsed / crackDuration, 1);
+            
+            // 각 균열 라인 애니메이션
+            p.userData.crackLines.forEach((crack, idx) => {
+              const delay = crack.isBranch ? 0.1 : idx * 0.03;
+              const localProgress = Math.max(0, Math.min((crackElapsed - delay) / (crackDuration - delay), 1));
+              
+              // 투명도
+              crack.line.material.opacity = localProgress * crack.targetOpacity;
+              
+              // 균열 확산 (점 위치 조정) - 선택적
+              if (localProgress > 0 && localProgress < 1) {
+                // 약간의 흔들림
+                crack.line.position.x = (Math.random() - 0.5) * 0.02;
+                crack.line.position.z = (Math.random() - 0.5) * 0.01;
+              } else {
+                crack.line.position.x = 0;
+                crack.line.position.z = 0;
+              }
+            });
+            
+            // 충격 링 애니메이션
+            if (p.userData.impactRing) {
+              const ringProgress = Math.min(crackElapsed / 0.3, 1);
+              p.userData.impactRing.scale.setScalar(1 + ringProgress * 8);
+              p.userData.impactRing.material.opacity = 0.8 * (1 - ringProgress);
+            }
+            
+            // 발판 흔들림 (균열 진행 중)
+            if (p.userData.crackProgress < 1) {
+              const shake = Math.sin(elapsed * 50) * 0.03 * p.userData.crackProgress;
+              if (p.userData.platformMesh) {
+                p.userData.platformMesh.position.x = shake;
+              }
+            } else {
+              // 균열 완료 후 지속적인 작은 흔들림
+              const shake = Math.sin(elapsed * 20) * 0.015;
+              if (p.userData.platformMesh) {
+                p.userData.platformMesh.position.x = shake;
+              }
+            }
+          }
         }
 
         const label = p.userData.label;
@@ -1010,6 +4158,67 @@
         }
       });
 
+      // 플레이어 눈 깜빡임 애니메이션
+      if (player.visible) {
+        // 충전 중일 때 인상 쓰기 (눈 찡그리기)
+        if (isCharging && isGrounded) {
+          const squint = 0.3 + (1 - chargeTime / maxCharge) * 0.3; // 0.3~0.6
+          leftEyeGroup.scale.y = squint;
+          rightEyeGroup.scale.y = squint;
+          // 눈 가로로 넓히기
+          leftEyeGroup.scale.x = 1.2;
+          rightEyeGroup.scale.x = 1.2;
+          // 눈 안쪽으로 기울이기 (찡그림)
+          leftEyeGroup.rotation.z = -0.2;
+          rightEyeGroup.rotation.z = 0.2;
+        } else {
+          // 평소 깜빡임
+          leftEyeGroup.rotation.z = 0;
+          rightEyeGroup.rotation.z = 0;
+          leftEyeGroup.scale.x = 1;
+          rightEyeGroup.scale.x = 1;
+          
+          nextBlinkTime -= delta;
+          
+          if (nextBlinkTime <= 0 && !isBlinking) {
+            isBlinking = true;
+            blinkProgress = 0;
+          }
+          
+          if (isBlinking) {
+            blinkProgress += delta * 15; // 깜빡임 속도
+            
+            if (blinkProgress < 1) {
+              // 눈 감기 (세로로 납작)
+              const scaleY = 1 - blinkProgress * 0.9;
+              leftEyeGroup.scale.y = scaleY;
+              rightEyeGroup.scale.y = scaleY;
+            } else if (blinkProgress < 2) {
+              // 눈 뜨기
+              const scaleY = 0.1 + (blinkProgress - 1) * 0.9;
+              leftEyeGroup.scale.y = scaleY;
+              rightEyeGroup.scale.y = scaleY;
+            } else {
+              // 깜빡임 완료
+              leftEyeGroup.scale.y = 1;
+              rightEyeGroup.scale.y = 1;
+              isBlinking = false;
+              
+              // 다음 깜빡임 (자연스러운 랜덤 간격)
+              if (Math.random() < 0.2) {
+                nextBlinkTime = 0.15 + Math.random() * 0.2;
+              } else {
+                nextBlinkTime = 1.5 + Math.random() * 3;
+              }
+            }
+          } else if (!isCharging) {
+            // 충전 끝나면 눈 원래대로
+            leftEyeGroup.scale.y = 1;
+            rightEyeGroup.scale.y = 1;
+          }
+        }
+      }
+
       if (isCharging && isGrounded) {
         chargeTime += chargeDirection * delta * chargeSpeed;
         if (chargeTime >= maxCharge) { chargeTime = maxCharge; chargeDirection = -1; }
@@ -1018,15 +4227,19 @@
         updateChargeSound(chargeTime / maxCharge);
       }
 
-      if (!isGrounded) {
+      if (!isGrounded && !isClearSequence) {
         if (input.left) player.position.x -= 0.1;
         if (input.right) player.position.x += 0.1;
+        // X 범위 제한
+        player.position.x = Math.max(-7.5, Math.min(7.5, player.position.x));
       }
 
-      velocityY += (velocityY > 0) ? -0.02 : -0.006;
-      player.position.y += velocityY;
+      if (!isClearSequence) {
+        velocityY += (velocityY > 0) ? -0.02 : -0.006;
+        player.position.y += velocityY;
+      }
 
-      if (isGrounded && onPlatform) player.position.x += onPlatform.userData.deltaX;
+      if (isGrounded && onPlatform && !isClearSequence) player.position.x += onPlatform.userData.deltaX;
 
       onPlatform = null; isGrounded = false;
 
@@ -1043,31 +4256,54 @@
         if (withinX && crossed && falling && !p.userData.falling) {
           player.position.y = platformTop + 0.5;
           velocityY = 0; isGrounded = true; onPlatform = p;
+          
+          // 점프 기록 종료
+          endJumpRecord();
 
-          // 같은 발판에 이미 착지한 적 있으면 소리 안냄
           const isNewLanding = lastLandedPlatformId !== p.userData.id;
           lastLandedPlatformId = p.userData.id;
 
+          // 착지 파티클 생성 (새로운 착지일 때만)
           if (isNewLanding) {
-            if (p.userData.special === 'bounce') {
+            const particleColor = p.material.color.getHex();
+            createLandingParticles(player.position.x, platformTop, particleColor);
+          }
+
+          if (isNewLanding) {
+            if (p.userData.special === 'deadly') {
+              // "그걸 밟네..." 텍스트 띄우고 게임오버
+              showDeadlyMessage();
+              return;
+            } else if (p.userData.special === 'bounce') {
               velocityY = maxCharge;
               isGrounded = false;
               lastLandedPlatformId = null;
               playBounceSound();
+              startJumpRecord('bounce');
             } else if (p.userData.special === 'superBounce') {
               velocityY = maxCharge * 1.4;
               isGrounded = false;
               lastLandedPlatformId = null;
               playSuperBounceSound();
+              startJumpRecord('superBounce');
             } else if (p.userData.special === 'crumble') {
-              playCrumbleSound();
-              // 1초 후 부서짐 시작
-              setTimeout(() => {
-                p.userData.falling = true;
-                p.material.transparent = true;
-              }, 1000);
+              // ═══════════════════════════════════
+              // 크럼블: 균열 시작!
+              // ═══════════════════════════════════
+              if (p.userData.crackStartTime === null) {
+                playCrackSound(); // 쩍! 사운드
+                p.userData.crackStartTime = elapsed;
+                p.userData.crackGroup.visible = true;
+                p.userData.dustBurst = true; // 풀썩! 먼지 버스트
+                
+                // 1초 후 붕괴
+                setTimeout(() => {
+                  p.userData.falling = true;
+                  playCrumbleSound();
+                  createCrumbleDebris(p);
+                }, 1000);
+              }
             }
-            // 일반 착지음 제거됨
           }
 
           if (p.userData.special === 'vanish' && !p.userData.vanishStarted) {
@@ -1081,7 +4317,6 @@
                 clearInterval(interval);
                 label?.remove?.();
                 p.userData.falling = true;
-                p.material.transparent = true;
               } else if (label) { label.innerText = seconds; }
             }, 1000);
           }
@@ -1089,15 +4324,42 @@
         }
       }
 
-      if (player.position.y > camera.position.y - 3) camera.position.y = player.position.y + 3;
+      // 클리어 시퀀스 중에는 카메라 Y 고정
+      if (!isClearSequence) {
+        if (player.position.y > camera.position.y - 3) camera.position.y = player.position.y + 3;
+      }
       if (player.position.y > maxY) maxY = player.position.y;
       scoreEl.innerText = `Score: ${Math.floor(maxY)}`;
+      
+      // 클리어 조건 체크 (2500점) - 무한모드면 건너뜀
+      if (!isInfiniteMode && maxY >= CLEAR_HEIGHT && !isClearSequence) {
+        isClearSequence = true;
+        clearSequenceStart = elapsed;
+        finalScoreValue = Math.floor(maxY);
+        
+        // 카메라 기준 블랙홀 상대 좌표 (고정값)
+        // 카메라: (0, camY, 10)
+        // 블랙홀: (10, camY - 8, -20)
+        const camY = camera.position.y;
+        clearTargetPos = new THREE.Vector3(10, camY - 8, -20);
+        
+        // 블랙홀 위치도 맞춤
+        blackholeGroup.position.copy(clearTargetPos);
+        
+        // 블랙홀 화면 좌표도 저장 (고정)
+        const bhScreenPos = clearTargetPos.clone().project(camera);
+        clearScreenX = (bhScreenPos.x + 1) / 2 * window.innerWidth;
+        clearScreenY = (-bhScreenPos.y + 1) / 2 * window.innerHeight;
+        
+        // Death plate 숨기기
+        if (deathPlate) deathPlate.visible = false;
+      }
 
       while (nextPlatformY < maxY + 30) {
-        const type = PLATFORM_TYPE_POOL[Math.floor(Math.random() * PLATFORM_TYPE_POOL.length)];
+        const type = getRandomPlatformType();
         createPlatform((Math.random() - 0.5) * 5, nextPlatformY, type);
 
-        const a = 0.002, b = 2000;
+        const a = 0.002, b = DIFFICULTY_CENTER;
         const difficultyScale = 1 / (1 + Math.exp(-a * (maxY - b)));
         const baseGap = 3, maxGap = 6;
         const gap = baseGap + (maxGap - baseGap) * difficultyScale;
@@ -1106,50 +4368,97 @@
         nextPlatformY += gap + (Math.random() * 2 - 1) * jitter;
       }
 
-      deathPlate.position.y += delta * 1.5;
-      if (player.position.y - deathPlate.position.y > 25) deathPlate.position.y = player.position.y - 20;
+      // Death plate 이동 (더 아래에서 스폰)
+      if (deathPlate && !isClearSequence) {
+        // 속도: 2에서 시작, DEATHPLATE_MAX_SPEED_HEIGHT에서 4까지 (제곱 곡선으로 가속)
+        const speedProgress = Math.min(maxY / DEATHPLATE_MAX_SPEED_HEIGHT, 1);
+        const deathPlateSpeed = 2 + 2 * speedProgress * speedProgress;
+        deathPlate.position.y += delta * deathPlateSpeed;
+        
+        if (player.position.y - deathPlate.position.y > 26) {
+          deathPlate.position.y = player.position.y - 26;
+        }
 
-      const plateTop = deathPlate.position.y + 0.25;
-      const playerBottom = player.position.y - 0.5;
-      const withinPlateX = Math.abs(player.position.x - deathPlate.position.x) < 5;
-      const lowestY = platforms.reduce((min, p) => Math.min(min, p.position.y), Infinity);
-      const fellTooLow = player.position.y < lowestY - 5;
-      const hitDeathPlate = !isInvincible && playerBottom <= plateTop && withinPlateX;
+        const plateTop = deathPlate.position.y + 0.25;
+        const playerBottom = player.position.y - 0.5;
+        // 전체 X 범위에서 판정 (버그 수정)
+        const hitDeathPlate = !isInvincible && playerBottom <= plateTop;
 
-      if (fellTooLow || hitDeathPlate) {
-        const score = Math.floor(maxY);
-        finalScoreText.innerText = `Your Score: ${score}`;
-        gameOverScreen.style.display = 'block';
-
-        stopChargeSound();
-        playGameOverSound();
-
-        finalScoreValue = score;
-
-        (async () => {
-          const serverData = await fetchServerLeaderboard(10);
-          if (!renderServerLeaderboardData(serverData)) {
-            leaderboardList.innerHTML = '<li style="color:#ff6666;">서버 연결 실패</li>';
-          }
-        })();
-
-        playerNameInput && setTimeout(() => playerNameInput.focus(), 0);
-        enableSaveButtonIfReady();
-
-        cancelAnimationFrame(animationId);
-        return;
+        if (hitDeathPlate) {
+          gameOver();
+          return;
+        }
       }
 
+      // 발판 제거 (카메라 아래 또는 Death plate 높이)
       for (let i = platforms.length - 1; i >= 0; i--) {
         const p = platforms[i];
-        if (p.position.y < camera.position.y - 40) {
+        const platformBottom = p.position.y - 0.25;
+        const shouldRemove = p.position.y < camera.position.y - 40 || 
+                            (deathPlate && platformBottom <= deathPlate.position.y + 0.25);
+        if (shouldRemove) {
           p.userData.label?.remove?.();
           scene.remove(p);
           platforms.splice(i, 1);
         }
       }
 
+      // 클리어 시퀀스 업데이트
+      if (isClearSequence) {
+        const shouldStop = updateClearSequence(elapsed, delta);
+        if (shouldStop) {
+          renderer.render(scene, camera);
+          return;
+        }
+      }
+
       renderer.render(scene, camera);
+    }
+
+    let deadlyDeath = false;
+
+    function showDeadlyMessage() {
+      deadlyDeath = true;
+      playDeadlySound();
+      gameOver();
+    }
+
+    function gameOver() {
+      gameState = 'gameover';
+      
+      // 검은 발판 사망 시 제목 변경 - 이스터에그!
+      const gameOverTitle = document.getElementById('gameOverTitle');
+      if (deadlyDeath && gameOverTitle) {
+        gameOverTitle.innerHTML = '🎉 EASTER EGG! 🎉<br><span style="font-size:18px;">You found the Petite Death Platform!</span>';
+        gameOverTitle.style.color = '#fff';
+        gameOverTitle.style.background = 'linear-gradient(135deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3, #54a0ff)';
+        gameOverTitle.style.backgroundSize = '300% 300%';
+        gameOverTitle.style.animation = 'rainbow 2s ease infinite';
+        gameOverTitle.style.padding = '15px 25px';
+        gameOverTitle.style.borderRadius = '15px';
+        gameOverTitle.style.textShadow = '2px 2px 4px rgba(0,0,0,0.3)';
+        gameOverTitle.style.boxShadow = '0 0 30px rgba(255,200,100,0.8), 0 0 60px rgba(255,100,200,0.5)';
+      }
+      
+      const score = Math.floor(maxY);
+      finalScoreText.innerText = `Your Score: ${score}`;
+      gameOverScreen.style.display = 'block';
+
+      stopChargeSound();
+      stopBlackholeDrone();
+      playGameOverSound();
+
+      finalScoreValue = score;
+
+      (async () => {
+        const serverData = await fetchServerLeaderboard(10);
+        if (!renderServerLeaderboardData(serverData)) {
+          leaderboardList.innerHTML = '<li style="color:#ff6666;">서버 연결 실패</li>';
+        }
+      })();
+
+      playerNameInput && setTimeout(() => playerNameInput.focus(), 0);
+      enableSaveButtonIfReady();
     }
 
     animate();
